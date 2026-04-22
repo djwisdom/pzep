@@ -230,4 +230,10 @@ bool ZepReplExCommand::AddKeyPress(uint32_t key, uint32_t modifiers)
     return false;
 }
 
+// Register a REPL provider with the editor (takes ownership)
+void RegisterReplProvider(ZepEditor& editor, IZepReplProvider* pProvider)
+{
+    editor.RegisterReplProvider(std::unique_ptr<IZepReplProvider>(pProvider));
+}
+
 } // namespace Zep

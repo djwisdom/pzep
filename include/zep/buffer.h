@@ -164,6 +164,15 @@ public:
     {
         return long(m_lineEnds.size());
     }
+    std::string GetLineText(long line) const;
+    size_t GetLength() const
+    {
+        return GetWorkingBuffer().size();
+    }
+    bool IsModified() const
+    {
+        return HasFileFlags(FileFlags::Dirty);
+    }
     long GetBufferLine(GlyphIterator offset) const;
 
     GlyphIterator End() const;

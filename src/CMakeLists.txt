@@ -59,12 +59,9 @@ ${ZEP_ROOT}/src/mode.cpp
 ${ZEP_ROOT}/src/mode_search.cpp
 ${ZEP_ROOT}/src/mode_standard.cpp
 ${ZEP_ROOT}/src/mode_tree.cpp
-${ZEP_ROOT}/src/mode_vim.cpp
-${ZEP_ROOT}/src/mode_repl.cpp
-${ZEP_ROOT}/src/mode_lua_repl.cpp
-${ZEP_ROOT}/src/mode_duktape_repl.cpp
-${ZEP_ROOT}/src/mode_quickjs_repl.cpp
-${ZEP_ROOT}/src/mode_terminal.cpp
+    ${ZEP_ROOT}/src/mode_vim.cpp
+    ${ZEP_ROOT}/src/mode_repl.cpp
+    ${ZEP_ROOT}/src/mode_terminal.cpp
 ${ZEP_ROOT}/src/regress.cpp
 ${ZEP_ROOT}/src/scroller.cpp
 ${ZEP_ROOT}/src/splits.cpp
@@ -77,8 +74,19 @@ ${ZEP_ROOT}/src/tab_window.cpp
 ${ZEP_ROOT}/src/theme.cpp
 ${ZEP_ROOT}/src/window.cpp
 ${ZEP_ROOT}/src/commands_terminal.cpp
-${ZEP_ROOT}/src/terminal.cpp
+    ${ZEP_ROOT}/src/terminal.cpp
 )
+
+# Conditionally include REPL providers based on CMake options
+if(ENABLE_LUA_REPL)
+    list(APPEND ZEP_SOURCE ${ZEP_ROOT}/src/mode_lua_repl.cpp)
+endif()
+if(ENABLE_DUKTAPE_REPL)
+    list(APPEND ZEP_SOURCE ${ZEP_ROOT}/src/mode_duktape_repl.cpp)
+endif()
+if(ENABLE_QUICKJS_REPL)
+    list(APPEND ZEP_SOURCE ${ZEP_ROOT}/src/mode_quickjs_repl.cpp)
+endif()
 
 set(SOURCES ${ZEP_SOURCE})
 
@@ -114,6 +122,12 @@ target_link_libraries(Zep
 	PUBLIC
 	stdc++fs
 )
+endif()
+
+# Link REPL provider libraries
+if(ENABLE_LUA_REPL)
+    target_link_libraries(Zep PRIVATE Lua::Lua)
+    target_compile_definitions(Zep INTERFACE ZEP_ENABLE_LUA_REPL)
 endif()
 
 # Set locations for components

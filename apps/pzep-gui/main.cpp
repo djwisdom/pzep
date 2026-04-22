@@ -1,4 +1,5 @@
 #include "zep/editor.h"
+#include "zep/mode_repl.h"
 #include "zep/mode_vim.h"
 #include "zep/raylib/display_raylib.h"
 
@@ -58,6 +59,10 @@ int main(int argc, char* argv[])
     ZepDisplay_Raylib display(1280, 800);
     ZepEditor editor(&display, std::filesystem::current_path());
     editor.SetGlobalMode(ZepMode_Vim::StaticName());
+
+#if defined(ZEP_ENABLE_LUA_REPL)
+    RegisterLuaReplProvider(editor);
+#endif
 
     // Load file from command line argument or create new "untitled" buffer
     ZepBuffer* buffer = editor.InitWithFileOrDir(file);

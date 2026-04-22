@@ -95,6 +95,16 @@ long ZepBuffer::GetBufferLine(GlyphIterator location) const
     return line;
 }
 
+std::string ZepBuffer::GetLineText(long line) const
+{
+    ByteRange range;
+    if (!GetLineOffsets(line, range))
+        return "";
+    GlyphIterator start(this, range.first);
+    GlyphIterator end(this, range.second);
+    return GetBufferText(start, end);
+}
+
 // Prepare for a motion
 void ZepBuffer::MotionBegin(GlyphIterator& start) const
 {

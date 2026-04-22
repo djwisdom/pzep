@@ -9,6 +9,11 @@ option(BUILD_DEMOS "Make the demo app" ON)
 option(BUILD_TESTS "Make the tests" ON)
 option(ZEP_FEATURE_CPP_FILE_SYSTEM "Default File system enabled" ON)
 
+# REPL Provider Options
+option(ENABLE_LUA_REPL "Enable Lua scripting support" OFF)
+option(ENABLE_DUKTAPE_REPL "Enable Duktape JavaScript support" OFF)
+option(ENABLE_QUICKJS_REPL "Enable QuickJS JavaScript support" OFF)
+
 # Global Settings
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -31,8 +36,14 @@ endif()
 
 project(Zep
     LANGUAGES CXX C
-    VERSION 0.5.12
+    VERSION 0.5.13
 )
+
+# Find Lua if enabled
+if(ENABLE_LUA_REPL)
+    find_package(Lua REQUIRED)
+    message(STATUS "Lua found: ${LUA_VERSION_STRING}")
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 

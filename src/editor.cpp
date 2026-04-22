@@ -746,6 +746,11 @@ void ZepEditor::RegisterExCommand(std::shared_ptr<ZepExCommand> spCommand)
     m_mapExCommands[spCommand->ExCommandName()] = spCommand;
 }
 
+void ZepEditor::RegisterReplProvider(std::unique_ptr<IZepReplProvider> pProvider)
+{
+    m_replProviders.emplace_back(std::move(pProvider));
+}
+
 ZepExCommand* ZepEditor::FindExCommand(const std::string& strName)
 {
     auto itr = m_mapExCommands.find(strName);

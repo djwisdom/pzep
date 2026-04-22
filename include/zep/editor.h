@@ -332,6 +332,8 @@ public:
 
     void RegisterBufferMode(const std::string& strExtension, std::shared_ptr<ZepMode> spMode);
 
+    void RegisterReplProvider(std::unique_ptr<IZepReplProvider> pProvider);
+
     void Display();
 
     void RegisterSyntaxFactory(const std::vector<std::string>& mappings, SyntaxProvider factory);
@@ -502,6 +504,8 @@ private:
     // List of buffers that the editor is managing
     // May or may not be visible
     tBuffers m_buffers;
+    // REPL providers ownership
+    std::vector<std::unique_ptr<IZepReplProvider>> m_replProviders;
     uint32_t m_flags = 0;
 
     mutable std::atomic_bool m_bPendingRefresh = { true };
