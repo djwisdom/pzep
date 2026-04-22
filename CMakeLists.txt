@@ -31,13 +31,13 @@ endif()
 
 project(Zep
     LANGUAGES CXX C
-    VERSION 0.5.8
+    VERSION 0.5.9
 )
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
 # Generate version information with git hash
 include(cmake/git_version.cmake)
-
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
 # Can I remove these now?
 if (ZEP_FEATURE_CPP_FILE_SYSTEM)
