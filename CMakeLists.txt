@@ -31,7 +31,7 @@ endif()
 
 project(Zep
     LANGUAGES CXX C
-    VERSION 0.5.5
+    VERSION 0.5.7
 )
 
 # Generate version information with git hash
