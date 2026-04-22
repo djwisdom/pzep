@@ -101,6 +101,48 @@ pzep/
 | `src/terminal.cpp` | Terminal emulator |
 | `src/buffer.cpp` | Text buffer |
 
+## Distribution
+
+### Dependencies (bundled automatically on build)
+
+- raylib.dll
+- glfw3.dll
+- freetype.dll
+- libpng16.dll
+- zlib1.dll
+
+### Packaging Options
+
+**1. Inno Setup (recommended for installer)**
+```iss
+; pZep-GUI.iss
+[Setup]
+AppName=pZep
+DefaultDirName={autopf}\pZep
+OutputDir=dist
+OutputBaseFilename=pZep-setup
+
+[Files]
+Source=pzep_gui.exe; DestDir: "{app}"
+Source=*.dll; DestDir: "{app}"
+```
+
+**2. winget:**
+```yaml
+# winget-pkgs/pZep/pZep.yaml
+PackageName: pZep
+Version: 0.1.0
+Publisher: djwisdom
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/djwisdom/pzep/releases/latest/download/pZep-setup.exe
+```
+
+**3. Chocolatey:**
+```sh
+choco install pzep --source=https://github.com/djwisdom/pzep/releases/latest/download/pZep-setup.exe
+```
+
 ## Credits
 
 Fork of Zep. Originally based on nzep (Notification Editor).

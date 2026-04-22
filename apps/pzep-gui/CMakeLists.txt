@@ -29,11 +29,32 @@ target_link_libraries(pzep_gui PRIVATE
     opengl32
     gdi32
     winmm
+    user32
     ${CMAKE_SOURCE_DIR}/../../build/lib/Release/Zep.lib
 )
 
 if(WIN32)
     target_compile_definitions(pzep_gui PRIVATE _CRT_SECURE_NO_WARNINGS)
+    
+    # Copy DLLs to output directory after build
+    add_custom_command(TARGET pzep_gui POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${RAYLIB_LIB}/../bin/raylib.dll
+            $<TARGET_FILE_DIR:pzep_gui>/
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${RAYLIB_LIB}/../bin/glfw3.dll
+            $<TARGET_FILE_DIR:pzep_gui>/
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${RAYLIB_LIB}/../bin/freetype.dll
+            $<TARGET_FILE_DIR:pzep_gui>/
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${RAYLIB_LIB}/../bin/libpng16.dll
+            $<TARGET_FILE_DIR:pzep_gui>/
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${RAYLIB_LIB}/../bin/zlib1.dll
+            $<TARGET_FILE_DIR:pzep_gui>/
+        COMMENT "Copying Raylib dependencies to output directory"
+    )
 endif()
 
 message(STATUS "pZep-GUI built")
