@@ -64,6 +64,7 @@ int main(int argc, char* argv[])
     editor.SetDisplayRegion(NVec2f(0.0f, 0.0f), NVec2f((float)display.GetScreenWidth(), (float)display.GetScreenHeight()));
     editor.GetConfig().autoHideCommandRegion = false; // Always show status bar at bottom
     editor.GetConfig().showLineNumbers = true;
+    editor.GetConfig().showMinimap = true; // Enable minimap
     // Disable relative line numbers - use absolute/normal numbering
     // by calling SetUseRelativeLineNumbers(false) on vim mode
     {
