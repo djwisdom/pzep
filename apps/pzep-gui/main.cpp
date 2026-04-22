@@ -164,6 +164,12 @@ int main(int argc, char* argv[])
 
         display.BeginFrame();
 
+        // Handle Ctrl+Q to quit (alternative to :q)
+        if (IsKeyPressed(KEY_Q) && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)))
+        {
+            break;
+        }
+
         // Check after BeginFrame - but don't close if ESC was just pressed or in insert mode
         if (display.ShouldClose() && !IsKeyDown(KEY_ESCAPE))
         {
