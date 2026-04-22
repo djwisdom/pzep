@@ -129,6 +129,11 @@ int main(int argc, char* argv[])
                         {
                             mode->AddKeyPress(1, mod); // ESCAPE - return to normal mode
                         }
+                        // F11 (292) - toggle fullscreen
+                        else if (key == 292)
+                        {
+                            ToggleFullscreen();
+                        }
                         else
                         {
                             auto it = g_keyMap.find(key);
