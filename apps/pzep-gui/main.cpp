@@ -64,7 +64,12 @@ int main(int argc, char* argv[])
     editor.SetDisplayRegion(NVec2f(0.0f, 0.0f), NVec2f((float)display.GetScreenWidth(), (float)display.GetScreenHeight()));
     editor.GetConfig().autoHideCommandRegion = false; // Always show status bar at bottom
     editor.GetConfig().showLineNumbers = true;
-    editor.GetConfig().showMinimap = true; // Enable minimap
+    editor.GetConfig().showMinimap = true;
+    editor.GetConfig().showIndicatorRegion = true; // Show git indicators
+    editor.GetConfig().shortTabNames = true; // Short tab names
+    editor.GetConfig().tabToneColors = true; // Tab tone colors
+    editor.GetConfig().cursorLineSolid = true; // Solid cursor line
+    editor.GetConfig().searchGitRoot = true; // Search for git root
     // Disable relative line numbers - use absolute/normal numbering
     // by calling SetUseRelativeLineNumbers(false) on vim mode
     {
