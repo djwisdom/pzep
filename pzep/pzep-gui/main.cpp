@@ -58,7 +58,6 @@ int main(int argc, char* argv[])
     ZepDisplay_Raylib display(1280, 800);
     ZepEditor editor(&display, std::filesystem::current_path());
     editor.SetGlobalMode(ZepMode_Vim::StaticName());
-    editor.GetConfig().autoHideCommandRegion = false; // Always show status bar
 
     ZepBuffer* buffer = editor.InitWithText(file, "");
 
