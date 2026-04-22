@@ -191,29 +191,19 @@ int main(int argc, char* argv[])
         std::string cmd = editor.GetCommandText();
         if (cmd.size() >= 2 && cmd[0] == ':' && cmd[1] == 'q')
         {
+            fprintf(stderr, "DEBUG: :q command detected, quitting\n");
             break;
         }
 
-        // Handle :q - quit when buffer count drops to 0
-        if (editor.GetBuffers().empty())
+        // Handle Ctrl+Q to quit (alternative to :q)
+        if (IsKeyPressed(KEY_Q) && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)))
         {
+            fprintf(stderr, "DEBUG: Ctrl+Q pressed, quitting\n");
             break;
         }
 
-        // Check after BeginFrame - but don't close if ESC was just pressed or in insert mode
-        if (display.ShouldClose() && !IsKeyDown(KEY_ESCAPE))
-        {
-            // Only close if not ESC and not in insert mode
-            Zep::EditorMode currentMode = Zep::EditorMode::None;
-            if (auto* b = editor.GetActiveBuffer())
-                if (auto* m = b->GetMode())
-                    currentMode = m->GetEditorMode();
-            if (currentMode != Zep::EditorMode::Insert)
-            {
-                fprintf(stderr, "DEBUG: ShouldClose true AFTER BeginFrame, closing\n");
-                break;
-            }
-        }
+        // Skip ShouldClose - let only explicit :q or Ctrl+Q quit
+        // Never close based on ShouldClose since ESC is disabled at raylib level
 
         ZepBuffer* buf = editor.GetActiveBuffer();
         if (buf)
