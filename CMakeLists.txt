@@ -61,7 +61,9 @@ enable_testing()
 # The main library
 add_subdirectory(src)
 add_subdirectory(tests)
-add_subdirectory(demos)
+if(EXISTS "${CMAKE_SOURCE_DIR}/demos" AND BUILD_DEMOS)
+    add_subdirectory(demos)
+endif()
 
 # Make the CMake bits that ensure find_package does the right thing
 install(EXPORT zep-targets
