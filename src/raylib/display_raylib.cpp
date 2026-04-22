@@ -66,8 +66,6 @@ ZepDisplay_Raylib::ZepDisplay_Raylib(int width, int height)
 {
     // Disable ALL exit keys - we handle closing ourselves via :q command
     SetExitKey(0); // 0 means no key closes window
-    // Enable resize and fullscreen - resizable window + fullscreen toggle with F11
-    SetWindowState(FLAG_WINDOW_RESIZABLE);
     InitWindow(width, height, "pZep-GUI - Vim-like Editor");
     SetTargetFPS(60);
 
