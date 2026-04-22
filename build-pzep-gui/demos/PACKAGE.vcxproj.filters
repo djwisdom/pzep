@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\casse\github\zep\build-pzep-gui\CMakeFiles\de649429e38ab965c90cf675e1a2c42d\PACKAGE_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{DC0272E8-58DD-3030-B216-0266EF6CF58C}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

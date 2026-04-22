@@ -1,0 +1,12 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/casse/github/zep/build-pzep-gui/cmake_install.cmake",
+		"C:/Users/casse/github/zep/build-pzep-gui/src/cmake_install.cmake",
+		"C:/Users/casse/github/zep/build-pzep-gui/tests/cmake_install.cmake",
+		"C:/Users/casse/github/zep/build-pzep-gui/demos/cmake_install.cmake",
+		"C:/Users/casse/github/zep/build-pzep-gui/demos/demo_imgui/cmake_install.cmake",
+		"C:/Users/casse/github/zep/build-pzep-gui/demos/demo_qt/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
