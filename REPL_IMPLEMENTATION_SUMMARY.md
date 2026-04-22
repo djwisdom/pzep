@@ -23,7 +23,7 @@ Implemented optional REPL/scripting language support for pZep with Lua, Duktape,
 
 ## Implementation Details
 
-### Security Considerations (as per SECURITY_REPORT.md)
+### Security Considerations (as per docs/SECURITY_REPORT.md)
 All three providers implement the same security model:
 - **Sandboxed execution**: Each provider runs in an isolated environment
 - **API restriction**: Only editor-bridge APIs are exposed, no direct filesystem/OS access

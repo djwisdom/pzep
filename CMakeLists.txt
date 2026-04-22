@@ -31,7 +31,7 @@ endif()
 
 project(Zep
     LANGUAGES CXX C
-    VERSION 0.5.9
+    VERSION 0.5.10
 )
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
