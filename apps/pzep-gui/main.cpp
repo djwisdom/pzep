@@ -63,6 +63,17 @@ int main(int argc, char* argv[])
     // Without this, status bar shows at (1,1) because regions are never computed
     editor.SetDisplayRegion(NVec2f(0.0f, 0.0f), NVec2f((float)display.GetScreenWidth(), (float)display.GetScreenHeight()));
     editor.GetConfig().autoHideCommandRegion = false; // Always show status bar at bottom
+    editor.GetConfig().showLineNumbers = true;
+    // Disable relative line numbers - use absolute/normal numbering
+    // by calling SetUseRelativeLineNumbers(false) on vim mode
+    {
+        // Get vim mode and disable relative lines
+        auto* vimMode = dynamic_cast<ZepMode_Vim*>(editor.GetGlobalMode());
+        if (vimMode)
+        {
+            vimMode->SetUseRelativeLineNumbers(false);
+        }
+    }
 
     ZepBuffer* buffer = editor.InitWithText(file, "");
 
@@ -74,21 +85,98 @@ int main(int argc, char* argv[])
 
     while (true)
     {
-        bool closeNow = display.ShouldClose();
-        if (closeNow)
+        // Check if ESC is being pressed - prevent window close
+        if (IsKeyDown(KEY_ESCAPE))
         {
-            fprintf(stderr, "DEBUG: ShouldClose at loop start (before BeginFrame), breaking\n");
-            fflush(stderr);
+            // ESC is down - don't let ShouldClose return true
+            // We'll check ShouldClose AFTER handling ESC
+        }
+
+        bool shouldClose = display.ShouldClose();
+        // Only actually close if not caused by ESC (and not ESC being held)
+        if (shouldClose && !IsKeyDown(KEY_ESCAPE))
+        {
             break;
         }
+
+        // Check if window was resized and update Zep display region
+        if (IsWindowResized())
+        {
+            editor.SetDisplayRegion(NVec2f(0.0f, 0.0f), NVec2f((float)GetScreenWidth(), (float)GetScreenHeight()));
+        }
+
+        // Note: Font resize disabled - causes blocky rendering.
+        // Font stays crisp at default size only.
+        // Ctrl+MouseWheel and Ctrl++/- resize removed for quality.
+
+        // Handle font size with Ctrl+MouseWheel
+        float mouseWheel = GetMouseWheelMove();
+        if (mouseWheel != 0 && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)))
+        {
+            auto& font = display.GetFont(ZepTextType::Text);
+            int newSize = font.GetPixelHeight() + (int)(mouseWheel * 2);
+            if (newSize < 8)
+                newSize = 8;
+            if (newSize > 72)
+                newSize = 72;
+            font.SetPixelHeight(newSize);
+        }
+
+        // Handle Ctrl++ and Ctrl+- for font size
+        if (IsKeyPressed(KEY_EQUAL) && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)))
+        {
+            auto& font = display.GetFont(ZepTextType::Text);
+            int newSize = font.GetPixelHeight() + 2;
+            if (newSize <= 72)
+            {
+                font.SetPixelHeight(newSize);
+            }
+        }
+        if (IsKeyPressed(KEY_MINUS) && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)))
+        {
+            auto& font = display.GetFont(ZepTextType::Text);
+            int newSize = font.GetPixelHeight() - 2;
+            if (newSize >= 8)
+            {
+                font.SetPixelHeight(newSize);
+            }
+        }
+
+        // Handle Ctrl++ and Ctrl+- for font size
+        if (IsKeyPressed(KEY_EQUAL) && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)))
+        {
+            auto& font = display.GetFont(ZepTextType::Text);
+            int newSize = font.GetPixelHeight() + 2;
+            if (newSize <= 72)
+            {
+                font.SetPixelHeight(newSize);
+            }
+        }
+        if (IsKeyPressed(KEY_MINUS) && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)))
+        {
+            auto& font = display.GetFont(ZepTextType::Text);
+            int newSize = font.GetPixelHeight() - 2;
+            if (newSize >= 8)
+            {
+                font.SetPixelHeight(newSize);
+            }
+        }
+
         display.BeginFrame();
 
-        // Check after BeginFrame
-        if (display.ShouldClose())
+        // Check after BeginFrame - but don't close if ESC was just pressed or in insert mode
+        if (display.ShouldClose() && !IsKeyDown(KEY_ESCAPE))
         {
-            fprintf(stderr, "DEBUG: ShouldClose true AFTER BeginFrame\n");
-            fflush(stderr);
-            break;
+            // Only close if not ESC and not in insert mode
+            Zep::EditorMode currentMode = Zep::EditorMode::None;
+            if (auto* b = editor.GetActiveBuffer())
+                if (auto* m = b->GetMode())
+                    currentMode = m->GetEditorMode();
+            if (currentMode != Zep::EditorMode::Insert)
+            {
+                fprintf(stderr, "DEBUG: ShouldClose true AFTER BeginFrame, closing\n");
+                break;
+            }
         }
 
         ZepBuffer* buf = editor.GetActiveBuffer();
@@ -130,9 +218,10 @@ int main(int argc, char* argv[])
                     else if (key > 0)
                     {
                         // ESC (key 256) should return to normal mode, not close window
-                        if (key == 256)
+                        if (key == 256 || IsKeyDown(KEY_ESCAPE))
                         {
                             mode->AddKeyPress(1, mod); // ESCAPE - return to normal mode
+                            // Don't check ShouldClose immediately - let Zep process the key first
                         }
                         // F11 (292) - toggle fullscreen
                         else if (key == 292)

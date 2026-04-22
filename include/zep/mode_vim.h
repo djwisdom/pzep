@@ -29,7 +29,7 @@ public:
 
     static const char* StaticName()
     {
-        return "Vim";
+        return "pZep";
     }
 
     // Zep Mode

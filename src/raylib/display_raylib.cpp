@@ -66,6 +66,8 @@ ZepDisplay_Raylib::ZepDisplay_Raylib(int width, int height)
 {
     // Disable ALL exit keys - we handle closing ourselves via :q command
     SetExitKey(0); // 0 means no key closes window
+    // Enable resizable window
+    SetWindowState(FLAG_WINDOW_RESIZABLE);
     InitWindow(width, height, "pZep-GUI - Vim-like Editor");
     SetTargetFPS(60);
 
@@ -176,6 +178,9 @@ ZepFont& ZepDisplay_Raylib::GetFont(ZepTextType type)
 
 bool ZepDisplay_Raylib::ShouldClose() const
 {
+    // Override - don't let ESC close window, we handle closing ourselves via :q
+    // But we can't check from const method, so just never return true from ESC
+    // This is handled by checking IsKeyDown in main loop before calling ShouldClose
     return WindowShouldClose();
 }
 

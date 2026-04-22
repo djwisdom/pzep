@@ -231,7 +231,7 @@ const float bottomBorder = 2.0f;
 const float textBorder = 2.0f;
 const float tabSelectLine = 8.0f;
 const float tabSpacing = 1.0f;
-const float leftBorderChars = 4;
+const float leftBorderChars = 4; // Should be 4, but relative numbers make this bigger
 
 #define DPI_VEC2(value) (value * GetEditor().GetDisplay().GetPixelScale())
 #define DPI_Y(value) (GetEditor().GetDisplay().GetPixelScale().y * value)
