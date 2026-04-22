@@ -103,6 +103,20 @@ pzep/
 
 ## Distribution
 
+### Installation Scopes
+
+#### 1. Per-User (Corporate/PIM policy)
+Installs to user directory, no admin rights required:
+- **Location**: `%LOCALAPPDATA%\pZep` (Windows)
+- **Silent install**: `pZep-setup.exe /CURRENTUSER`
+- **Uninstall**: `%LOCALAPPDATA%\pZep\uninstall.exe`
+
+#### 2. All-Users (End consumers)
+Installs system-wide, requires admin:
+- **Location**: `%ProgramFiles%\pZep` (Windows)
+- **Silent install**: `pZep-setup.exe /ALLUSERS`
+- **Uninstall**: `%ProgramFiles%\pZep\uninstall.exe`
+
 ### Dependencies (bundled automatically on build)
 
 - raylib.dll
@@ -113,21 +127,50 @@ pzep/
 
 ### Packaging Options
 
-**1. Inno Setup (recommended for installer)**
+**1. Inno Setup (recommended)**
 ```iss
 ; pZep-GUI.iss
 [Setup]
 AppName=pZep
-DefaultDirName={autopf}\pZep
+DefaultDirName={pf}\pZep
+DefaultGroupName=pZep
 OutputDir=dist
 OutputBaseFilename=pZep-setup
+AllowUserView=Yes
+PrivilegesRequired=admin
+PrivilegesRequiredOverridesAllowed=dialog
 
-[Files]
-Source=pzep_gui.exe; DestDir: "{app}"
-Source=*.dll; DestDir: "{app}"
+[Registry]
+; Per-user install (default, supports PIM)
+Root: HKCU; Subkey: "Software\pZep"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
+; All-users install
+Root: HKLM; Subkey: "Software\pZep"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
+
+[Code]
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssUserInfo then
+    WizardForm.NoIconsCheck.Visible := True;
+end;
 ```
 
-**2. winget:**
+**2. MSIX/AppX (Microsoft Store ready)**
+```xml
+<!-- AppxManifest.xml -->
+<Package>
+  <Identity Name="pZep" Version="0.1.0"/>
+  <Resources>
+    <Resource Target="User"/>
+  </Resources>
+</Package>
+```
+
+**3. winget:**
 ```yaml
 # winget-pkgs/pZep/pZep.yaml
 PackageName: pZep
@@ -136,11 +179,19 @@ Publisher: djwisdom
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/djwisdom/pzep/releases/latest/download/pZep-setup.exe
+    InstallerScope: user
+  - Architecture: x64
+    InstallerUrl: https://github.com/djwisdom/pzep/releases/latest/download/pZep-setup.exe
+    InstallerScope: machine
 ```
 
-**3. Chocolatey:**
+**4. Chocolatey:**
 ```sh
-choco install pzep --source=https://github.com/djwisdom/pzep/releases/latest/download/pZep-setup.exe
+# Per-user
+choco install pzep -y --scope=user
+
+# All-users  
+choco install pzep -y --scope=machine
 ```
 
 ## Credits
