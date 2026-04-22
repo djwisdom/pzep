@@ -41,4 +41,4 @@ pzep/
 
 ## Credit
 
-Based on [Zep](https://github.com/zepeditor/zep) by f闭幕马拉
+Fork of Zep.
