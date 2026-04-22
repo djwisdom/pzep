@@ -194,6 +194,60 @@ choco install pzep -y --scope=user
 choco install pzep -y --scope=machine
 ```
 
+### GitHub Releases
+
+Package the installer and create GitHub Release:
+
+1. **Build installer** - Use Inno Setup to create `pZep-setup.exe`
+
+2. **Create Release** on GitHub:
+   - Tag: `v0.1.0`
+   - Title: `pZep v0.1.0`
+   - Description: Release notes
+
+3. **Upload Assets**:
+   ```
+   pZep-setup.exe          # Installer (primary)
+   pZep-portable.zip      # Portable version (zip)
+   ```
+
+4. **Portable Option** (no install needed):
+   ```sh
+   # Download and extract portable version
+   Invoke-WebRequest -Uri "https://github.com/djwisdom/pzep/releases/latest/download/pZep-portable.zip" -OutFile pZep.zip
+   Expand-Archive pZep.zip -DestinationPath "$env:LOCALAPPDATA\pZep"
+   "$env:LOCALAPPDATA\pZep\pZep.exe"
+   ```
+   
+   **CI/CD GitHub Action**:
+   ```yaml
+   # .github/workflows/release.yml
+   name: Release
+   on:
+     push:
+       tags:
+         - 'v*'
+   
+   jobs:
+     release:
+       runs-on: windows-latest
+       steps:
+         - uses: actions/checkout@v4
+         
+         - name: Build
+           run: |
+             cd apps/pzep-gui/build/Release
+             7z a -tzip ../../../pZep-portable.zip *
+         
+         - name: Create Release
+           uses: softprops/action-gh-release@v1
+           with:
+             files: |
+               pZep-setup.exe
+               pZep-portable.zip
+           draft: true
+   ```
+
 ## Credits
 
 Fork of Zep. Originally based on nzep (Notification Editor).
