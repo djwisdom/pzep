@@ -31,8 +31,11 @@ endif()
 
 project(Zep
     LANGUAGES CXX C
-    VERSION 0.5.0
+    VERSION 0.5.5
 )
+
+# Generate version information with git hash
+include(cmake/git_version.cmake)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 

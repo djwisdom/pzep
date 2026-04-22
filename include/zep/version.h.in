@@ -1,0 +1,50 @@
+#pragma once
+
+#include <string>
+
+namespace Zep {
+
+/**
+ * @brief Version information for pZep
+ */
+struct VersionInfo {
+    static constexpr int MAJOR = @PROJECT_VERSION_MAJOR@;
+    static constexpr int MINOR = @PROJECT_VERSION_MINOR@;
+    static constexpr int PATCH = @PROJECT_VERSION_PATCH@;
+    
+    // Full version string with git hash: 0.5.5+abc123
+    static constexpr const char* FULL = "@PZEP_VERSION_FULL@";
+    
+    // Git commit hash
+    static constexpr const char* GIT_COMMIT = "@GIT_COMMIT_HASH@";
+    
+    // Git commit count
+    static constexpr int GIT_COMMIT_COUNT = @GIT_COMMIT_COUNT@;
+    
+    // Git branch
+    static constexpr const char* GIT_BRANCH = "@GIT_BRANCH@";
+    
+    // Build timestamp
+    static constexpr const char* BUILD_DATE = "@CMAKE_BUILD_DATE@";
+    
+    // Compiler info
+    static constexpr const char* COMPILER = "@CMAKE_CXX_COMPILER_ID@ @CMAKE_CXX_COMPILER_VERSION@";
+    
+    /**
+     * @brief Get version as string "major.minor.patch"
+     */
+    static std::string GetVersionString() {
+        return std::to_string(MAJOR) + "." + 
+               std::to_string(MINOR) + "." + 
+               std::to_string(PATCH);
+    }
+    
+    /**
+     * @brief Get full version with git hash
+     */
+    static std::string GetFullVersion() {
+        return GetVersionString() + "+" + GIT_COMMIT;
+    }
+};
+
+} // namespace Zep

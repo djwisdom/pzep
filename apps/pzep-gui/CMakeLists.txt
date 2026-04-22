@@ -22,6 +22,7 @@ target_include_directories(pzep-gui PRIVATE
     ${CMAKE_SOURCE_DIR}/../../src
     ${CMAKE_SOURCE_DIR}/../../src/raylib
     ${RAYLIB_INCLUDE}
+    ${CMAKE_BINARY_DIR}
 )
 
 target_link_libraries(pzep-gui PRIVATE
