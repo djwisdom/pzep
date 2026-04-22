@@ -74,9 +74,10 @@ ZepDisplay_Raylib::ZepDisplay_Raylib(int width, int height)
     SetTargetFPS(60);
 
     // Load font at size 16 with ASCII codepoints
-    // Smaller size for a more standard editor appearance
     std::vector<int> codepoints;
     for (int c = 32; c <= 126; c++)
+        codepoints.push_back(c);
+    for (int c = 160; c <= 255; c++)
         codepoints.push_back(c);
 
     m_defaultFont = LoadFontEx("C:/Windows/Fonts/CascadiaMono.ttf", 16, codepoints.data(), (int)codepoints.size());
@@ -91,8 +92,7 @@ ZepDisplay_Raylib::ZepDisplay_Raylib(int width, int height)
         m_defaultFont = GetFontDefault();
     }
 
-    // Create default font entry - tell Zep the pixel height is 16
-    // This matches the font atlas size, so measurement and drawing are consistent
+    // Create default font entry
     m_spDefaultFont = std::make_shared<ZepFont_Raylib>(*this, m_defaultFont, 16);
     printf("INFO: FONT: ZepFont_Raylib created with m_pixelHeight=16\n");
     fflush(stdout);

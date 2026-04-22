@@ -44,12 +44,10 @@ struct IZepReplProvider
     }
 };
 
-class ZepReplExCommand : public ZepExCommand
+class ZepReplExCommand : public ZepComponent
 {
 public:
-    ZepReplExCommand(ZepEditor& editor, IZepReplProvider* pProvider);
-
-    static void Register(ZepEditor& editor, IZepReplProvider* pProvider);
+    ZepReplExCommand(ZepEditor& editor);
 
     virtual void Run(const std::vector<std::string>& args) override;
     virtual const char* ExCommandName() const override
@@ -68,7 +66,7 @@ private:
     void MoveToEnd();
 
 private:
-    IZepReplProvider* m_pProvider = nullptr;
+    ZepEditor* m_pEditor = nullptr;
     ZepBuffer* m_pReplBuffer = nullptr;
     ZepWindow* m_pReplWindow = nullptr;
     KeyMap m_keymap;
@@ -83,10 +81,6 @@ public:
 
     static void Register(ZepEditor& editor, IZepReplProvider* pProvider);
 
-    virtual void Notify(std::shared_ptr<ZepMessage> message) override
-    {
-        ZEP_UNUSED(message);
-    }
     virtual void Run(const std::vector<std::string>& args) override;
     virtual const char* ExCommandName() const override
     {
@@ -153,5 +147,19 @@ private:
     IZepReplProvider* m_pProvider = nullptr;
     KeyMap m_keymap;
 };
+
+// Base Repl Provider Registration Functions
+void RegisterReplProviders(ZepEditor& editor);
+
+// Individual Repl Provider Registration Functions
+void RegisterLuaReplProvider(ZepEditor& editor);
+void RegisterDuktapeReplProvider(ZepEditor& editor);
+void RegisterQuickJSEvalReplProvider(ZepEditor& editor);
+
+// Legacy/Deprecated: Use the above individual functions or RegisterReplProviders
+void RegisterReplProvider(ZepEditor& editor, IZepReplProvider* pProvider);
+
+const std::string PromptString = ">> ";
+const std::string ContinuationString = ".. ";
 
 } // namespace Zep

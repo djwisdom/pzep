@@ -61,6 +61,9 @@ ${ZEP_ROOT}/src/mode_standard.cpp
 ${ZEP_ROOT}/src/mode_tree.cpp
 ${ZEP_ROOT}/src/mode_vim.cpp
 ${ZEP_ROOT}/src/mode_repl.cpp
+${ZEP_ROOT}/src/mode_lua_repl.cpp
+${ZEP_ROOT}/src/mode_duktape_repl.cpp
+${ZEP_ROOT}/src/mode_quickjs_repl.cpp
 ${ZEP_ROOT}/src/mode_terminal.cpp
 ${ZEP_ROOT}/src/regress.cpp
 ${ZEP_ROOT}/src/scroller.cpp
@@ -145,4 +148,7 @@ source_group (Zep\\common REGULAR_EXPRESSION "src/mcommon/.*")
 source_group (Zep\\common REGULAR_EXPRESSION "include/zep/mcommon/.*")
 source_group (Zep REGULAR_EXPRESSION "src/.*")
 source_group (Zep\\include REGULAR_EXPRESSION "include/zep/.*")
+source_group (Zep\\repl REGULAR_EXPRESSION "src/mode_lua_repl.cpp")
+source_group (Zep\\repl REGULAR_EXPRESSION "src/mode_duktape_repl.cpp")
+source_group (Zep\\repl REGULAR_EXPRESSION "src/mode_quickjs_repl.cpp")
 

@@ -2928,9 +2928,6 @@ CursorType ZepMode::GetCursorType() const
 
 void ZepMode::Begin(ZepWindow* pWindow)
 {
-    fprintf(stderr, "DEBUG: ZepMode::Begin START, this = %p, Name = %s, pWindow = %p\n", this, Name(), pWindow);
-    fflush(stderr);
-
     timer_restart(m_lastKeyPressTimer);
 
     m_pCurrentWindow = pWindow;
@@ -2943,14 +2940,8 @@ void ZepMode::Begin(ZepWindow* pWindow)
     // If we are an overlay mode, make sure that the global mode is also begun on the new window
     if (GetEditor().GetGlobalMode() != this)
     {
-        fprintf(stderr, "DEBUG: ZepMode::Begin calling GetGlobalMode()->Begin recursively, global mode = %p\n", GetEditor().GetGlobalMode());
-        fflush(stderr);
         GetEditor().GetGlobalMode()->Begin(pWindow);
-        fprintf(stderr, "DEBUG: ZepMode::Begin after recursive call\n");
-        fflush(stderr);
     }
-    fprintf(stderr, "DEBUG: ZepMode::Begin END, this = %p\n", this);
-    fflush(stderr);
 }
 
 } // namespace Zep

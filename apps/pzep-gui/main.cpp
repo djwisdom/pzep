@@ -65,11 +65,11 @@ int main(int argc, char* argv[])
     // Debug: check if file was loaded
     if (buffer)
     {
-        fprintf(stderr, "Loaded buffer: %s\n", buffer->GetName().c_str());
+        printf("Loaded buffer: %s\n", buffer->GetName().c_str());
     }
     else
     {
-        fprintf(stderr, "Failed to load: %s\n", file);
+        printf("Failed to load: %s\n", file);
     }
 
     // CRITICAL: Set display region so Zep knows actual window size and can layout properly
@@ -83,22 +83,13 @@ int main(int argc, char* argv[])
     editor.GetConfig().tabToneColors = true; // Tab tone colors
     editor.GetConfig().cursorLineSolid = true; // Solid cursor line
     editor.GetConfig().searchGitRoot = true; // Search for git root
-    // Disable relative line numbers - use absolute/normal numbering
-    // by calling SetUseRelativeLineNumbers(false) on vim mode
-    {
-        // Get vim mode and disable relative lines
-        auto* vimMode = dynamic_cast<ZepMode_Vim*>(editor.GetGlobalMode());
-        if (vimMode)
-        {
-            vimMode->SetUseRelativeLineNumbers(false);
-        }
-    }
 
-    fprintf(stderr, "=== pZep-GUI v0.1.0 ===\n");
-    fprintf(stderr, "Click in window, press 'i' to insert, ESC normal, :q quit\n");
-    fprintf(stderr, "Display Initialized: %dx%d\n", 1280, 800);
-    fprintf(stderr, "Font pixel height: %d\n", display.GetFont(ZepTextType::Text).GetPixelHeight());
-    fflush(stderr);
+    // Disable relative line numbers - use absolute/normal numbering
+    auto* vimMode = dynamic_cast<ZepMode_Vim*>(editor.GetGlobalMode());
+    if (vimMode)
+    {
+        vimMode->SetUseRelativeLineNumbers(false);
+    }
 
     while (true)
     {
@@ -189,16 +180,8 @@ int main(int argc, char* argv[])
 
         // Handle :q - quit when command text starts with :q or :q!
         std::string cmd = editor.GetCommandText();
-        if (cmd.size() >= 2 && cmd[0] == ':' && cmd[1] == 'q')
+        if (cmd.size() >= 2 && cmd.substr(0, 2) == ":q")
         {
-            fprintf(stderr, "DEBUG: :q command detected, quitting\n");
-            break;
-        }
-
-        // Handle Ctrl+Q to quit (alternative to :q)
-        if (IsKeyPressed(KEY_Q) && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)))
-        {
-            fprintf(stderr, "DEBUG: Ctrl+Q pressed, quitting\n");
             break;
         }
 
@@ -211,31 +194,17 @@ int main(int argc, char* argv[])
             ZepMode* mode = buf->GetMode();
             if (mode)
             {
-                static int lastMode = -1;
-                int currMode = (int)mode->GetEditorMode();
-                if (currMode != lastMode)
-                {
-                    fprintf(stderr, "MODE CHANGE: %d\n", currMode);
-                    lastMode = currMode;
-                    fflush(stderr);
-                }
-
                 int mod = GetModifiers();
 
                 int ch = GetCharPressed();
                 if (ch > 0)
                 {
-                    fprintf(stderr, "KEY CHAR: '%c' (%d)\n", (char)ch, ch);
-                    fflush(stderr);
                     mode->AddKeyPress(ch, mod);
                 }
 
                 int key = GetKeyPressed();
                 if (key > 0)
                 {
-                    fprintf(stderr, "DEBUG: GetKeyPressed=%d, ShouldClose=%d\n", key, display.ShouldClose() ? 1 : 0);
-                    fflush(stderr);
-
                     // Skip ASCII characters - those go through GetCharPressed()
                     if (key >= 32 && key <= 126)
                     {
@@ -247,7 +216,6 @@ int main(int argc, char* argv[])
                         if (key == 256 || IsKeyDown(KEY_ESCAPE))
                         {
                             mode->AddKeyPress(1, mod); // ESCAPE - return to normal mode
-                            // Don't check ShouldClose immediately - let Zep process the key first
                         }
                         // F11 (292) - toggle fullscreen
                         else if (key == 292)
@@ -283,17 +251,8 @@ int main(int argc, char* argv[])
                 editor.OnMouseUp({ mp.x, mp.y }, (ZepMouseButton)b);
         }
 
-        display.ClearBackground({ 0.1f, 0.1f, 0.1f, 1.0f });
         editor.Display();
         display.EndFrame();
-
-        // Check ShouldClose AFTER EndFrame
-        if (display.ShouldClose())
-        {
-            fprintf(stderr, "DEBUG: ShouldClose became true AFTER EndFrame\n");
-            fflush(stderr);
-            break;
-        }
     }
 
     return 0;

@@ -134,8 +134,6 @@ void ZepTabWindow::SetActiveWindow(ZepWindow* pBuffer)
 // case to deal with that.
 ZepWindow* ZepTabWindow::AddWindow(ZepBuffer* pBuffer, ZepWindow* pParent, RegionLayoutType layoutType)
 {
-    fprintf(stderr, "DEBUG: ZepTabWindow::AddWindow start, m_windows.size() = %zu, pParent = %p\n", m_windows.size(), pParent);
-
     // If we are replacing a default/unmodified start buffer, then this new window will replace it
     // This makes for nice behavior where adding a top-level window to the tab will nuke the default buffer
     if (m_windows.size() == 1 && pParent == nullptr)
@@ -144,12 +142,10 @@ ZepWindow* ZepTabWindow::AddWindow(ZepBuffer* pBuffer, ZepWindow* pParent, Regio
         if (buffer.HasFileFlags(FileFlags::DefaultBuffer) && !buffer.HasFileFlags(FileFlags::Dirty))
         {
             m_windows[0]->SetBuffer(pBuffer);
-            fprintf(stderr, "DEBUG: ZepTabWindow::AddWindow replaced default buffer, returning existing window\n");
             return m_windows[0];
         }
     }
 
-    fprintf(stderr, "DEBUG: ZepTabWindow::AddWindow creating new window\n");
     // Make a new window
     auto pWin = new ZepWindow(*this, pBuffer);
     m_windows.push_back(pWin);
@@ -251,7 +247,6 @@ ZepWindow* ZepTabWindow::AddWindow(ZepBuffer* pBuffer, ZepWindow* pParent, Regio
 
     SetDisplayRegion(m_lastRegionRect, true);
 
-    fprintf(stderr, "DEBUG: ZepTabWindow::AddWindow returning %p\n", pWin);
     return pWin;
 }
 

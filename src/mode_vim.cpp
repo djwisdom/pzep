@@ -315,19 +315,12 @@ void ZepMode_Vim::SetupKeyMaps()
 
 void ZepMode_Vim::Begin(ZepWindow* pWindow)
 {
-    fprintf(stderr, "DEBUG: ZepMode_Vim::Begin called, pWindow = %p\n", pWindow);
-    fflush(stderr);
-
     ZepMode::Begin(pWindow);
-    fprintf(stderr, "DEBUG: ZepMode_Vim::Begin after ZepMode::Begin\n");
-    fflush(stderr);
 
     GetEditor().SetCommandText(m_currentCommand);
     m_currentMode = EditorMode::Normal;
     m_currentCommand.clear();
     m_dotCommand.clear();
-    fprintf(stderr, "DEBUG: ZepMode_Vim::Begin done\n");
-    fflush(stderr);
 }
 
 void ZepMode_Vim::PreDisplay(ZepWindow& window)
