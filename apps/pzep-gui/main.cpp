@@ -59,6 +59,9 @@ int main(int argc, char* argv[])
     ZepEditor editor(&display, std::filesystem::current_path());
     editor.SetGlobalMode(ZepMode_Vim::StaticName());
 
+    // Load file from command line argument or create new "untitled" buffer
+    ZepBuffer* buffer = editor.InitWithFileOrDir(file);
+
     // CRITICAL: Set display region so Zep knows actual window size and can layout properly
     // Without this, status bar shows at (1,1) because regions are never computed
     editor.SetDisplayRegion(NVec2f(0.0f, 0.0f), NVec2f((float)display.GetScreenWidth(), (float)display.GetScreenHeight()));
@@ -80,8 +83,6 @@ int main(int argc, char* argv[])
             vimMode->SetUseRelativeLineNumbers(false);
         }
     }
-
-    ZepBuffer* buffer = editor.InitWithText(file, "");
 
     fprintf(stderr, "=== pZep-GUI v0.1.0 ===\n");
     fprintf(stderr, "Click in window, press 'i' to insert, ESC normal, :q quit\n");
