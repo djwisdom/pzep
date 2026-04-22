@@ -62,6 +62,16 @@ int main(int argc, char* argv[])
     // Load file from command line argument or create new "untitled" buffer
     ZepBuffer* buffer = editor.InitWithFileOrDir(file);
 
+    // Debug: check if file was loaded
+    if (buffer)
+    {
+        fprintf(stderr, "Loaded buffer: %s\n", buffer->GetName().c_str());
+    }
+    else
+    {
+        fprintf(stderr, "Failed to load: %s\n", file);
+    }
+
     // CRITICAL: Set display region so Zep knows actual window size and can layout properly
     // Without this, status bar shows at (1,1) because regions are never computed
     editor.SetDisplayRegion(NVec2f(0.0f, 0.0f), NVec2f((float)display.GetScreenWidth(), (float)display.GetScreenHeight()));
@@ -173,6 +183,13 @@ int main(int argc, char* argv[])
 
         // Handle Ctrl+Q to quit (alternative to :q)
         if (IsKeyPressed(KEY_Q) && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)))
+        {
+            break;
+        }
+
+        // Handle :q - quit when command text starts with :q or :q!
+        std::string cmd = editor.GetCommandText();
+        if (cmd.size() >= 2 && cmd[0] == ':' && cmd[1] == 'q')
         {
             break;
         }
