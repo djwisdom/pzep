@@ -64,11 +64,13 @@ ZepDisplay_Raylib::ZepDisplay_Raylib(int width, int height)
     , m_height(height)
     , m_clipEnabled(false)
 {
-    // Disable ALL exit keys - we handle closing ourselves via :q command
-    SetExitKey(0); // 0 means no key closes window
+    // Create window first
+    InitWindow(width, height, "pZep-GUI - Vim-like Editor");
+
+    // Disable ALL exit keys AFTER window creation - we handle closing ourselves via :q command
+    SetExitKey(KEY_NULL); // KEY_NULL = 0, no key closes window
     // Enable resizable window
     SetWindowState(FLAG_WINDOW_RESIZABLE);
-    InitWindow(width, height, "pZep-GUI - Vim-like Editor");
     SetTargetFPS(60);
 
     // Load font at size 16 with ASCII codepoints
