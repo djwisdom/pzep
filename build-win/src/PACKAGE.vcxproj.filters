@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\casse\github\zep\build-win\CMakeFiles\47f97662777da238af1ba6b76a4b8729\PACKAGE_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{63C80C75-0B70-3C24-9C4F-267FF6681F0C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Zep">
+      <UniqueIdentifier>{D7AF1E66-D4DE-3BE0-8E2D-1CE332097EA0}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

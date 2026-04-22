@@ -1,4 +1,4 @@
-# Vim Ex Commands Specification for pZep
+# Vim Ex Commands Specification for nZep
 
 ## 1. Overview
 

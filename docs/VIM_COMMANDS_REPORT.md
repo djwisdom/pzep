@@ -1,4 +1,4 @@
-# Vim Commands Compliance Report for pZep
+# Vim Commands Compliance Report for nZep
 ## Comparing VIM_COMMANDS_SPEC.md to Implementation
 
 ---

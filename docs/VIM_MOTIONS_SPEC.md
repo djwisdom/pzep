@@ -1,8 +1,8 @@
-# Vim-Style Motions Specification for pZep
+# Vim-Style Motions Specification for nZep
 
 ## 1. Overview
 
-This document defines the complete specification for implementing Vim-style motions in the pZep. The goal is exact compatibility with Vim's motion behavior, including integration with operators and text objects.
+This document defines the complete specification for implementing Vim-style motions in the nZep. The goal is exact compatibility with Vim's motion behavior, including integration with operators and text objects.
 
 ---
 
@@ -422,4 +422,4 @@ bool last_find_reverse;
 
 ---
 
-*This specification is designed for exact Vim compatibility in pzep.*
+*This specification is designed for exact Vim compatibility in nzep.*

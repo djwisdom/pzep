@@ -1,4 +1,4 @@
-# Vim Compatibility Report for pZep
+# Vim Compatibility Report for nZep
 ## Comparing VIM_MOTIONS_SPEC.md to Implementation
 
 ---

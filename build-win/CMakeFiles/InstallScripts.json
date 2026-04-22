@@ -1,0 +1,10 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/casse/github/zep/build-win/cmake_install.cmake",
+		"C:/Users/casse/github/zep/build-win/src/cmake_install.cmake",
+		"C:/Users/casse/github/zep/build-win/tests/cmake_install.cmake",
+		"C:/Users/casse/github/zep/build-win/demos/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

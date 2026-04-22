@@ -64,7 +64,8 @@ ZepDisplay_Raylib::ZepDisplay_Raylib(int width, int height)
     , m_height(height)
     , m_clipEnabled(false)
 {
-    SetExitKey(0);
+    // Disable ALL exit keys - we handle closing ourselves via :q command
+    SetExitKey(0); // 0 means no key closes window
     InitWindow(width, height, "pZep-GUI - Vim-like Editor");
     SetTargetFPS(60);
 

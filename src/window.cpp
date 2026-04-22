@@ -53,20 +53,13 @@ ZepWindow::ZepWindow(ZepTabWindow& window, ZepBuffer* buffer)
     , m_tabWindow(window)
     , m_pBuffer(buffer)
 {
-    fprintf(stderr, "DEBUG: ZepWindow constructor start\n");
-    fflush(stderr);
-
     m_bufferRegion = std::make_shared<Region>();
-    fprintf(stderr, "DEBUG: ZepWindow after m_bufferRegion\n");
-    fflush(stderr);
-
     m_numberRegion = std::make_shared<Region>();
     m_indicatorRegion = std::make_shared<Region>();
     m_textRegion = std::make_shared<Region>();
     m_airlineRegion = std::make_shared<Region>();
     m_vScrollRegion = std::make_shared<Region>();
     m_minimapRegion = std::make_shared<Region>();
-    fprintf(stderr, "DEBUG: ZepWindow after regions\n");
 
     m_bufferRegion->flags = RegionFlags::Expanding;
     m_bufferRegion->layoutType = RegionLayoutType::VBox;
@@ -77,27 +70,18 @@ ZepWindow::ZepWindow(ZepTabWindow& window, ZepBuffer* buffer)
     m_minimapRegion->flags = RegionFlags::Fixed;
     m_textRegion->flags = RegionFlags::Expanding;
     m_airlineRegion->flags = RegionFlags::Fixed;
-    fprintf(stderr, "DEBUG: ZepWindow after region flags\n");
 
     m_editRegion = std::make_shared<Region>();
-    fprintf(stderr, "DEBUG: ZepWindow after m_editRegion\n");
-
     m_editRegion->flags = RegionFlags::Expanding;
     m_editRegion->layoutType = RegionLayoutType::HBox;
-    fprintf(stderr, "DEBUG: ZepWindow after m_editRegion setup\n");
 
     // A little daylight between the indicators
     m_textRegion->padding = NVec2f(DPI_X(8), 0);
-    fprintf(stderr, "DEBUG: ZepWindow after padding\n");
 
     // Ensure that the main area with text, numbers, indicators fills the remaining space
     m_expandingEditRegion = std::make_shared<Region>();
-    fprintf(stderr, "DEBUG: ZepWindow after m_expandingEditRegion\n");
-
     m_expandingEditRegion->flags = RegionFlags::Expanding;
     m_expandingEditRegion->layoutType = RegionLayoutType::HBox;
-    fprintf(stderr, "DEBUG: ZepWindow after m_expandingEditRegion setup\n");
-
     m_expandingEditRegion->children.push_back(m_editRegion);
 
     m_bufferRegion->children.push_back(m_expandingEditRegion);
@@ -112,11 +96,7 @@ ZepWindow::ZepWindow(ZepTabWindow& window, ZepBuffer* buffer)
     m_vScroller = std::make_shared<Scroller>(GetEditor(), *m_vScrollRegion);
     m_vScroller->vertical = false;
 
-    fprintf(stderr, "DEBUG: ZepWindow calling SetBuffer\n");
-    fflush(stderr);
     SetBuffer(m_pBuffer);
-    fprintf(stderr, "DEBUG: ZepWindow after SetBuffer\n");
-    fflush(stderr);
 
     timer_start(m_toolTipTimer);
 }
@@ -960,7 +940,7 @@ void ZepWindow::DisplayLineBackground(SpanInfo& lineInfo, ZepSyntax* pSyntax)
     auto widgetMargins = DPI_VEC2(GetEditor().GetConfig().widgetMargins);
     auto underlineHeight = DPI_Y(GetEditor().GetConfig().underlineHeight);
     auto inlineMargins = DPI_VEC2(GetEditor().GetConfig().inlineWidgetMargins);
-    auto screenPosX = m_textRegion->rect.Left() + m_xPad - m_hScrollOffsetPx;
+    auto screenPosX = m_textRegion->rect.Left() + m_xPad;
     auto widgetMarkers = m_pBuffer->GetRangeMarkers(RangeMarkerType::Widget);
     auto itrWidgetMarkers = widgetMarkers.begin();
     auto tipTimeSeconds = timer_get_elapsed_seconds(m_toolTipTimer);
@@ -1148,8 +1128,15 @@ void ZepWindow::DisplayLineNumbers()
 
             auto mode = m_pBuffer->GetMode();
 
-            // Always show absolute line numbers (not relative)
-            strNum = std::to_string(lineInfo.bufferLineNumber + 1);
+            // In Vim mode show relative lines, unless in Ex mode (with hidden cursor)
+            if (mode->UsesRelativeLines() && mode->GetCursorType() != CursorType::None)
+            {
+                strNum = std::to_string(std::abs(lineInfo.bufferLineNumber - cursorBufferLine));
+            }
+            else
+            {
+                strNum = std::to_string(lineInfo.bufferLineNumber + 1);
+            }
 
             auto& numFont = display.GetFont(ZepTextType::UI);
             auto textSize = numFont.GetTextSize((const uint8_t*)strNum.c_str(), (const uint8_t*)(strNum.c_str() + strNum.size()));
@@ -1405,16 +1392,6 @@ bool ZepWindow::DisplayLine(SpanInfo& lineInfo, int displayPass)
         lineStart = false;
     }
 
-    // Draw ~ for empty lines (Vim-style)
-    if (lineInfo.lineCodePoints.empty() || (lineInfo.lineCodePoints.size() == 1 && lineInfo.lineCodePoints[0].iterator.Index() == lineInfo.lineByteRange.second))
-    {
-        auto& font = *lineInfo.pFont;
-        auto tildeSize = font.GetTextSize((const uint8_t*)"~");
-        auto tildePos = NVec2f(m_textRegion->rect.Left() + m_xPad, ToWindowY(lineInfo.yOffsetPx + lineInfo.padding.x));
-        auto tildeColor = m_pBuffer->GetTheme().GetColor(ThemeColor::LineNumber);
-        display.DrawChars(font, tildePos, tildeColor, (const uint8_t*)"~", (const uint8_t*)"~" + 1);
-    }
-
     display.SetClipRect(NRectf{});
 
     return true;
@@ -1508,41 +1485,14 @@ void ZepWindow::SetBuffer(ZepBuffer* pBuffer)
     m_pBuffer = pBuffer;
     m_layoutDirty = true;
     m_textOffsetPx = 0;
-    m_hScrollOffsetPx = 0.0f;
     m_bufferCursor = pBuffer->GetLastEditLocation().Clamped();
     m_lastCursorColumn = 0;
     m_cursorMoved = false;
-
-    fprintf(stderr, "DEBUG: ZepWindow::SetBuffer, pBuffer->GetMode() = %p\n", pBuffer->GetMode());
-    fflush(stderr);
-
     if (pBuffer->GetMode())
     {
-        fprintf(stderr, "DEBUG: ZepWindow::SetBuffer calling mode->Begin\n");
-        fflush(stderr);
         pBuffer->GetMode()->Begin(this);
-        fprintf(stderr, "DEBUG: ZepWindow::SetBuffer after mode->Begin\n");
-        fflush(stderr);
     }
-    else
-    {
-        fprintf(stderr, "DEBUG: ZepWindow::SetBuffer buffer has no mode, getting global mode\n");
-        fflush(stderr);
-        auto pGlobalMode = GetEditor().GetGlobalMode();
-        if (pGlobalMode)
-        {
-            fprintf(stderr, "DEBUG: ZepWindow::SetBuffer calling global mode->Begin\n");
-            fflush(stderr);
-            pGlobalMode->Begin(this);
-            fprintf(stderr, "DEBUG: ZepWindow::SetBuffer after global mode->Begin\n");
-            fflush(stderr);
-        }
-    }
-    fprintf(stderr, "DEBUG: ZepWindow::SetBuffer calling UpdateTabs\n");
-    fflush(stderr);
     GetEditor().UpdateTabs();
-    fprintf(stderr, "DEBUG: ZepWindow::SetBuffer after UpdateTabs\n");
-    fflush(stderr);
 }
 
 GlyphIterator ZepWindow::GetBufferCursor()
@@ -1864,7 +1814,7 @@ void ZepWindow::GetCursorInfo(NVec2f& pos, NVec2f& size)
 
     NVec2f cursorSize;
     bool found = false;
-    float xPos = m_textRegion->rect.topLeftPx.x + m_xPad - m_hScrollOffsetPx;
+    float xPos = m_textRegion->rect.topLeftPx.x + m_xPad;
 
     int count = 0;
     for (auto ch : cursorBufferLine.lineCodePoints)
@@ -2112,16 +2062,15 @@ void ZepWindow::Display()
         }
     }
 
-    // Draw ~ for all empty lines (Vim-style)
-    // This draws ~ on lines that have no content, filling the editor with tildes
+    // Draw ~ for empty lines (Vim-style)
     for (long windowLine = m_visibleLineIndices.x; windowLine < m_visibleLineIndices.y; windowLine++)
     {
         auto& lineInfo = *m_windowLines[windowLine];
-        // Check if line is empty (no code points or only a single point at end)
-        if (lineInfo.lineCodePoints.empty() || (lineInfo.lineCodePoints.size() == 1 && lineInfo.lineCodePoints[0].iterator.Index() >= lineInfo.lineByteRange.second - 1))
+        // Check if line is empty - lineByteRange.first == lineByteRange.second means empty
+        bool isEmpty = (lineInfo.lineByteRange.first == lineInfo.lineByteRange.second);
+        if (isEmpty)
         {
             auto& font = *lineInfo.pFont;
-            auto tildeSize = font.GetTextSize((const uint8_t*)"~");
             auto tildePos = NVec2f(m_textRegion->rect.Left() + m_xPad, ToWindowY(lineInfo.yOffsetPx + lineInfo.padding.x));
             auto tildeColor = m_pBuffer->GetTheme().GetColor(ThemeColor::LineNumber);
             display.DrawChars(font, tildePos, tildeColor, (const uint8_t*)"~", (const uint8_t*)"~" + 1);
@@ -2402,99 +2351,27 @@ NVec2i ZepWindow::BufferToDisplay(const GlyphIterator& loc)
     return ret;
 }
 
-// Vertical screen redraw motions
-void ZepWindow::ScrollToCursorLineTop()
-{
-    UpdateLayout();
-    auto cursorCL = BufferToDisplay();
-    if (cursorCL.y < 0 || m_windowLines.empty())
-        return;
-    auto& cursorLine = GetCursorLineInfo(cursorCL.y);
-    float oldOffset = m_textOffsetPx;
-    m_textOffsetPx = cursorLine.yOffsetPx;
-    m_textOffsetPx = std::max(0.0f, m_textOffsetPx);
-    m_textOffsetPx = std::min(m_textOffsetPx, GetVScrollMax());
-    if (oldOffset != m_textOffsetPx)
-    {
-        UpdateVisibleLineRange();
-    }
-}
-
-void ZepWindow::ScrollToCursorLineCenter()
-{
-    UpdateLayout();
-    auto cursorCL = BufferToDisplay();
-    if (cursorCL.y < 0 || m_windowLines.empty())
-        return;
-    auto& cursorLine = GetCursorLineInfo(cursorCL.y);
-    float lineHeight = cursorLine.FullLineHeightPx();
-    float viewHeight = m_textRegion->rect.Height();
-    float target = cursorLine.yOffsetPx + lineHeight * 0.5f - viewHeight * 0.5f;
-    float oldOffset = m_textOffsetPx;
-    m_textOffsetPx = target;
-    m_textOffsetPx = std::max(0.0f, m_textOffsetPx);
-    m_textOffsetPx = std::min(m_textOffsetPx, GetVScrollMax());
-    if (oldOffset != m_textOffsetPx)
-    {
-        UpdateVisibleLineRange();
-    }
-}
-
-void ZepWindow::ScrollToCursorLineBottom()
-{
-    UpdateLayout();
-    auto cursorCL = BufferToDisplay();
-    if (cursorCL.y < 0 || m_windowLines.empty())
-        return;
-    auto& cursorLine = GetCursorLineInfo(cursorCL.y);
-    float lineHeight = cursorLine.FullLineHeightPx();
-    float viewHeight = m_textRegion->rect.Height();
-    float target = cursorLine.yOffsetPx + lineHeight - viewHeight;
-    float oldOffset = m_textOffsetPx;
-    m_textOffsetPx = target;
-    m_textOffsetPx = std::max(0.0f, m_textOffsetPx);
-    m_textOffsetPx = std::min(m_textOffsetPx, GetVScrollMax());
-    if (oldOffset != m_textOffsetPx)
-    {
-        UpdateVisibleLineRange();
-    }
-}
-
-float ZepWindow::GetVScrollMax() const
-{
-    float contentHeight = m_textSizePx.y;
-    float viewHeight = m_textRegion->rect.Height();
-    if (contentHeight <= viewHeight)
-        return 0.0f;
-    return contentHeight - viewHeight;
-}
-
-// Horizontal scrolling
-void ZepWindow::ScrollHorizontal(float delta)
-{
-    UpdateLayout();
-    float oldOffset = m_hScrollOffsetPx;
-    m_hScrollOffsetPx += delta;
-    m_hScrollOffsetPx = std::max(0.0f, m_hScrollOffsetPx);
-    m_hScrollOffsetPx = std::min(m_hScrollOffsetPx, GetHScrollMax());
-    if (oldOffset != m_hScrollOffsetPx)
-    {
-        DirtyLayout();
-    }
-}
-
-float ZepWindow::GetHScrollMax() const
-{
-    float contentWidth = m_textSizePx.x;
-    float viewWidth = m_textRegion->rect.Width();
-    if (contentWidth <= viewWidth)
-        return 0.0f;
-    return contentWidth - viewWidth;
-}
-
-float ZepWindow::GetTextRegionWidth() const
-{
-    return m_textRegion ? m_textRegion->rect.Width() : 0.0f;
-}
-
 } // namespace Zep
+
+#if 0
+    // Ensure we can see the cursor
+    NVec2i cursor(0, 0);
+    cursor.x = m_pBuffer->GetBufferColumn(m_bufferCursor);
+    cursor.y = m_pBuffer->GetBufferLine(m_bufferCursor) - m_pBuffer->GetBufferLine(m_dvisibleLineRange.x);
+
+    // Handle the case where there is no need to scroll, since the visible lines are inside
+    // The current screen rectangle.
+    if (cursor.y >= m_nvisibleLineRange.y && m_linesFillScreen)
+    {
+        m_visibleLineRange.x = cursor.y - (m_nvisibleLineRange.y - m_vnisibleLineRange.x) + 1;
+        m_linesChanged = true;
+    }
+    else if (cursor.y < m_nvisibleLineRange.x)
+    {
+        m_nvisibleLineRange.x = cursor.y;
+        m_linesChanged = true;
+    }
+
+    // Clamp
+    m_nvisibleLineRange.x = std::max(0l, (long)m_nvisibleLineRange.x);
+#endif
