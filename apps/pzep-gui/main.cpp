@@ -176,6 +176,12 @@ int main(int argc, char* argv[])
             break;
         }
 
+        // Handle :q - quit when buffer count drops to 0
+        if (editor.GetBuffers().empty())
+        {
+            break;
+        }
+
         // Check after BeginFrame - but don't close if ESC was just pressed or in insert mode
         if (display.ShouldClose() && !IsKeyDown(KEY_ESCAPE))
         {
