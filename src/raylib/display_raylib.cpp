@@ -1,6 +1,8 @@
 #include "zep/raylib/display_raylib.h"
+
 #include <cstdio>
 #include <cstring>
+#include <set>
 #include <string>
 
 // Note: Don't include windows.h - it conflicts with raylib function names
@@ -77,15 +79,60 @@ ZepDisplay_Raylib::ZepDisplay_Raylib(int width, int height)
     SetWindowState(FLAG_WINDOW_RESIZABLE);
     SetTargetFPS(60);
 
-    // Load font at size 16 with ASCII codepoints
-    std::vector<int> codepoints;
-    for (int c = 32; c <= 126; c++)
-        codepoints.push_back(c);
-    for (int c = 160; c <= 255; c++)
-        codepoints.push_back(c);
+    // Build comprehensive Unicode codepoint set for font atlas
+    std::set<int> cpset;
+
+    // Basic Latin (32-126) and Latin-1 Supplement (160-255)
+    for (int c = 32; c <= 126; ++c)
+        cpset.insert(c);
+    for (int c = 160; c <= 255; ++c)
+        cpset.insert(c);
+
+    // Latin Extended-A (256-383)
+    for (int c = 256; c <= 383; ++c)
+        cpset.insert(c);
+    // Latin Extended-B (384-591)
+    for (int c = 384; c <= 591; ++c)
+        cpset.insert(c);
+    // IPA Extensions (592-687)
+    for (int c = 592; c <= 687; ++c)
+        cpset.insert(c);
+    // Spacing Modifier Letters (688-767)
+    for (int c = 688; c <= 767; ++c)
+        cpset.insert(c);
+    // Combining Diacritical Marks (768-879)
+    for (int c = 768; c <= 879; ++c)
+        cpset.insert(c);
+    // Greek and Coptic (880-1023)
+    for (int c = 880; c <= 1023; ++c)
+        cpset.insert(c);
+    // Cyrillic (1024-1279)
+    for (int c = 1024; c <= 1279; ++c)
+        cpset.insert(c);
+    // Cyrillic Supplement (1280-1327)
+    for (int c = 1280; c <= 1327; ++c)
+        cpset.insert(c);
+    // Georgian (1424-1516)
+    for (int c = 1424; c <= 1516; ++c)
+        cpset.insert(c);
+    // Box Drawing (9472-9599) — for line art
+    for (int c = 9472; c <= 9599; ++c)
+        cpset.insert(c);
+    // Block Elements (9600-9631)
+    for (int c = 9600; c <= 9631; ++c)
+        cpset.insert(c);
+    // Geometric Shapes (9632-9727)
+    for (int c = 9632; c <= 9727; ++c)
+        cpset.insert(c);
+    // Miscellaneous Symbols (9728-9983)
+    for (int c = 9728; c <= 9983; ++c)
+        cpset.insert(c);
+
+    // Convert set to vector for LoadFontEx
+    std::vector<int> codepoints(cpset.begin(), cpset.end());
 
     m_defaultFont = LoadFontEx("C:/Windows/Fonts/CascadiaMono.ttf", 16, codepoints.data(), (int)codepoints.size());
-    printf("INFO: FONT: CascadiaMono loaded: baseSize=%d, glyphCount=%d\n", m_defaultFont.baseSize, m_defaultFont.glyphCount);
+    printf("INFO: FONT: CascadiaMono loaded: baseSize=%d, glyphCount=%d, codepoints=%zu\n", m_defaultFont.baseSize, m_defaultFont.glyphCount, codepoints.size());
     fflush(stdout);
 
     // If load failed, fall back to default raylib font

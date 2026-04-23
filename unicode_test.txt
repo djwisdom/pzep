@@ -1,6 +1,26 @@
 Testing Unicode input fix
+
 The fix addresses the core issue where Unicode codepoints > 127 were incorrectly converted to strings by treating the integer's memory as a C-string.
 
 The fix uses utf8_from_codepoint() from zep/mcommon/string/stringutils.h to properly encode Unicode codepoints as UTF-8.
+
 Testing characters: café, naïve, résumé, pi (π), sum (Σ), infinity (∞)
-日本語, 中文, 한국어, العربية, русский
+
+日本語, 中文, 한국어, العربية, русскийl
+
+Paragraph 1 — Emoji & Currency Overview
+📊 The 10-column worksheet serves as the central hub of the accounting cycle, bridging the gap between daily transactions and formal financial statements. Every peso (₱) flows through this grid: from the unadjusted trial balance of ₱556,200 → through adjustments totaling ₱53,000 → to the adjusted trial balance of ₱559,200. Assets like Cash 💰 (₱41,100) and Automobile 🚗 (₱300,000) must always equal liabilities plus equity — a fundamental accounting equation that keeps the books in perfect harmony.
+
+Paragraph 2 — Mathematical & Greek Symbols
+The relationship between revenue and expenses determines net income: Σ(Revenues) − Σ(Expenses) = Net Income. For Next Chapter Travel Agency, Fees Earned (₱146,000) − [Salaries (₱27,000) + Rent (₱48,000) + Communications (₱7,800) + Utilities (₱8,000) + Supplies (₱2,500) + Miscellaneous (₱2,800)] = ₱49,900. This π-like precision ensures that ∀ accounts, debits ≡ credits, maintaining the integrity of the double-entry bookkeeping system across all λ periods.
+
+Paragraph 3 — Box-Drawing & Decorative Unicode
+┌─────────────────────────────────────────────────────────┐
+│  BALANCE SHEET PROOF — June 30, 2025                    │
+├─────────────────────────────────────────────────────────┤
+│  Assets:        ₱429,100  ★  Liabilities:    ₱9,000    │
+│                            ★  Equity:        ₱420,100   │
+│  ───────────────────────── ★ ────────────────────────   │
+│  TOTAL:         ₱429,100  ★  TOTAL:        ₱429,100   │
+└─────────────────────────────────────────────────────────┘
+The post-closing trial balance confirms that all temporary accounts (revenues, expenses, drawings) have been zeroed out via closing entries, leaving only permanent accounts to begin the next fiscal period fresh and balanced ✓.

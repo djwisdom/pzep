@@ -448,20 +448,73 @@ void ZepMode::AddKeyPress(uint32_t key, uint32_t modifierKeys)
     // Allow full Unicode codepoints; no masking or transformation
     m_lastKey = key;
 
-    // Get the new command by parsing out the keys
-    // We convert CTRL + f to a string: "<C-f>"
-    HandleMappedInput(ConvertInputToMapString(key, modifierKeys));
-
-    if (m_pCurrentWindow)
+    // Ex mode special keys: handle directly to avoid appending token to command string
+    if (m_currentMode == EditorMode::Ex)
     {
-        auto notifier = m_pCurrentWindow->GetBuffer().GetPostKeyNotifier();
-        if (notifier != nullptr)
+        if (key == ExtKeys::RETURN)
         {
-            notifier(key, modifierKeys);
+            if (HandleExCommand(m_currentCommand))
+            {
+                SwitchMode(DefaultMode());
+                ResetCommand();
+            }
+            return;
+        }
+        if (key == ExtKeys::BACKSPACE)
+        {
+            if (HandleExCommand(m_currentCommand))
+            {
+                SwitchMode(DefaultMode());
+                ResetCommand();
+            }
+            // Update command line display after backspace edit
+            GetEditor().SetCommandText(m_currentCommand);
+            return;
+        }
+        if (key == ExtKeys::ESCAPE)
+        {
+            if (HandleExCommand(m_currentCommand))
+            {
+                SwitchMode(DefaultMode());
+                ResetCommand();
+            }
+            return;
         }
     }
 
-    timer_restart(m_lastKeyPressTimer);
+    // Get the new command by parsing out the keys
+    // We convert CTRL + f to a string: "<C-f>"
+    HandleMappedInput(ConvertInputToMapString(key, modifierKeys));
+}
+
+// Allow full Unicode codepoints; no masking or transformation
+m_lastKey = key;
+
+// Special Ex mode handling: Return executes the command without appending Return token
+if (m_currentMode == EditorMode::Ex && key == ExtKeys::RETURN)
+{
+    if (HandleExCommand(m_currentCommand))
+    {
+        SwitchMode(DefaultMode());
+        ResetCommand();
+    }
+    return;
+}
+
+// Get the new command by parsing out the keys
+// We convert CTRL + f to a string: "<C-f>"
+HandleMappedInput(ConvertInputToMapString(key, modifierKeys));
+
+if (m_pCurrentWindow)
+{
+    auto notifier = m_pCurrentWindow->GetBuffer().GetPostKeyNotifier();
+    if (notifier != nullptr)
+    {
+        notifier(key, modifierKeys);
+    }
+}
+
+timer_restart(m_lastKeyPressTimer);
 }
 
 void ZepMode::HandleMappedInput(const std::string& input)
