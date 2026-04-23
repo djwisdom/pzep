@@ -1640,6 +1640,27 @@ bool ZepMode::GetCommand(CommandContext& context)
         }
         context.commandResult.flags = ZSetFlags(context.commandResult.flags, CommandResultFlags::BeginUndoGroup);
     }
+    else if (mappedCommand == id_StandardCut)
+    {
+        auto range = GetInclusiveVisualRange();
+        if (!range.Valid())
+        {
+            return true;
+        }
+        context.beginRange = range.first;
+        context.endRange = range.second.Peek(1);
+        if (context.beginRange == context.endRange)
+        {
+            return true;
+        }
+
+        // Copy to clipboard registers before deleting (cut operation)
+        context.registers.push('0');
+        context.registers.push('*');
+        context.registers.push('+');
+        context.op = CommandOperation::Delete;
+        context.commandResult.modeSwitch = DefaultMode();
+    }
     else if (mappedCommand == id_PasteAfter)
     {
         GetEditor().ReadClipboard();

@@ -982,24 +982,18 @@ ZepBuffer* ZepEditor::GetMRUBuffer() const
 
 void ZepEditor::ReadClipboard()
 {
-    auto pMsg = std::make_shared<ZepMessage>(Msg::GetClipBoard);
-    Broadcast(pMsg);
-    if (pMsg->handled)
+    std::string text = m_pDisplay->GetClipboardText();
+    if (!text.empty() && text != m_registers["+"].text)
     {
-        if (pMsg->str != m_registers["+"].text)
-        {
-            m_registers["+"] = pMsg->str;
-            m_registers["*"] = pMsg->str;
-            m_registers["\""] = pMsg->str;
-        }
+        m_registers["+"] = text;
+        m_registers["*"] = text;
+        m_registers["\""] = text;
     }
 }
 
 void ZepEditor::WriteClipboard()
 {
-    auto pMsg = std::make_shared<ZepMessage>(Msg::SetClipBoard);
-    pMsg->str = m_registers["+"].text;
-    Broadcast(pMsg);
+    m_pDisplay->SetClipboardText(m_registers["+"].text);
 }
 
 void ZepEditor::SetRegister(const std::string& reg, const Register& val)

@@ -48,6 +48,10 @@ public:
     virtual void SetClipRect(const NRectf& rc) override;
     virtual ZepFont& GetFont(ZepTextType type) override;
 
+    // Clipboard
+    std::string GetClipboardText() const override;
+    void SetClipboardText(const std::string& text) override;
+
     // Raylib-specific methods
     bool ShouldClose() const;
     void BeginFrame();

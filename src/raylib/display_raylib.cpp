@@ -111,6 +111,23 @@ ZepDisplay_Raylib::~ZepDisplay_Raylib()
     CloseWindow();
 }
 
+std::string ZepDisplay_Raylib::GetClipboardText() const
+{
+    const char* text = ::GetClipboardText();
+    if (text)
+    {
+        std::string result = text;
+        // Note: UnloadClipboardText not available in some raylib versions; ignore
+        return result;
+    }
+    return "";
+}
+
+void ZepDisplay_Raylib::SetClipboardText(const std::string& text)
+{
+    ::SetClipboardText(text.c_str());
+}
+
 void ZepDisplay_Raylib::DrawLine(const NVec2f& start, const NVec2f& end, const NVec4f& color, float width) const
 {
     Color c = {

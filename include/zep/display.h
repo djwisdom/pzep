@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <string>
 
 #include "buffer.h"
 
@@ -71,7 +72,7 @@ protected:
 class ZepDisplay
 {
 public:
-    virtual ~ZepDisplay(){};
+    virtual ~ZepDisplay() {};
     ZepDisplay();
 
     // Renderer specific overrides
@@ -95,6 +96,13 @@ public:
     void Smaller();
 
     float GetDefaultTextSize() const;
+
+    // Clipboard support (default no-op)
+    virtual std::string GetClipboardText() const
+    {
+        return "";
+    }
+    virtual void SetClipboardText(const std::string& text) {}
 
 protected:
     bool m_bRebuildLayout = false;

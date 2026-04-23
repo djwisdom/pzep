@@ -212,6 +212,11 @@ void ZepMode_Vim::AddGlobalKeyMaps()
     // CTRL + =/- to zoom fonts while in non-normal mode
     keymap_add({ &m_normalMap, &m_visualMap, &m_insertMap }, { "<C-=>" }, id_FontBigger);
     keymap_add({ &m_normalMap, &m_visualMap, &m_insertMap }, { "<C-->" }, id_FontSmaller);
+
+    // Standard clipboard shortcuts
+    keymap_add({ &m_normalMap, &m_visualMap, &m_insertMap }, { "<C-c>" }, id_StandardCopy);
+    keymap_add({ &m_normalMap, &m_visualMap, &m_insertMap }, { "<C-x>" }, id_StandardCut);
+    keymap_add({ &m_normalMap, &m_visualMap, &m_insertMap }, { "<C-v>", "<S-Insert>" }, id_StandardPaste);
 }
 
 void ZepMode_Vim::SetupKeyMaps()

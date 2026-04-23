@@ -157,6 +157,7 @@ DECLARE_COMMANDID(Save)
 // Standard mode commands
 DECLARE_COMMANDID(StandardCopy)
 DECLARE_COMMANDID(StandardPaste)
+DECLARE_COMMANDID(StandardCut)
 
 DECLARE_COMMANDID(StandardSelectAll)
 
