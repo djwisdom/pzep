@@ -208,12 +208,8 @@ int main(int argc, char* argv[])
             }
         }
 
-        // Handle :q - quit when command text starts with :q or :q!
-        std::string cmd = editor.GetCommandText();
-        if (cmd.size() >= 2 && cmd.substr(0, 2) == ":q")
-        {
-            break;
-        }
+        // Let Ex command handling take care of :q via the command system
+        // (no separate check here)
 
         // Skip ShouldClose - let only explicit :q or Ctrl+Q quit
         // Never close based on ShouldClose since ESC is disabled at raylib level

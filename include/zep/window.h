@@ -292,6 +292,10 @@ private:
     NVec2f m_mousePos; // Current mouse location
     GlyphIterator m_mouseIterator; // Current iterator for the mouse cursor
 
+    // Mouse drag selection state
+    bool m_mouseSelecting = false;
+    GlyphIterator m_mouseSelStart;
+
     // Visual stuff
     std::vector<std::string> m_statusLines; // Status information, shown under the buffer
 
