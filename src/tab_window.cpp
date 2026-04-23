@@ -212,7 +212,7 @@ ZepWindow* ZepTabWindow::AddWindow(ZepBuffer* pBuffer, ZepWindow* pParent, Regio
             });
 
             // Insertion point should be _after_ the location we want
-            if (itrFound != p_parentRegion->children.end())
+            if (itrFound != pParentRegion->children.end())
             {
                 itrFound++;
             }

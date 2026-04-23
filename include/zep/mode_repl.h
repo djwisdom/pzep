@@ -3,6 +3,9 @@
 #include <future>
 #include <memory>
 #include <regex>
+#include <zep/editor.h>
+#include <zep/glyph_iterator.h>
+#include <zep/keymap.h>
 #include <zep/mode.h>
 
 namespace Zep
@@ -44,28 +47,30 @@ struct IZepReplProvider
     }
 };
 
-class ZepReplExCommand : public ZepComponent
+class ZepReplExCommand : public ZepExCommand
 {
 public:
-    ZepReplExCommand(ZepEditor& editor);
+    ZepReplExCommand(ZepEditor& editor, IZepReplProvider* pProvider);
 
-    virtual void Run(const std::vector<std::string>& args) override;
-    virtual const char* ExCommandName() const override
+    void Run(const std::vector<std::string>& args) override;
+    const char* ExCommandName() const override
     {
         return "ZRepl";
     }
-    virtual const KeyMap* GetKeyMappings(ZepMode&) const override
+    const KeyMap* GetKeyMappings(ZepMode&) const override
     {
         return &m_keymap;
     }
 
-    virtual bool AddKeyPress(uint32_t key, uint32_t modifiers);
+    bool AddKeyPress(uint32_t key, uint32_t modifiers);
+    static void Register(ZepEditor& editor, IZepReplProvider* pProvider);
 
 private:
     void Prompt();
     void MoveToEnd();
 
 private:
+    IZepReplProvider* m_pProvider = nullptr;
     ZepEditor* m_pEditor = nullptr;
     ZepBuffer* m_pReplBuffer = nullptr;
     ZepWindow* m_pReplWindow = nullptr;
@@ -158,8 +163,5 @@ void RegisterQuickJSEvalReplProvider(ZepEditor& editor);
 
 // Legacy/Deprecated: Use the above individual functions or RegisterReplProviders
 void RegisterReplProvider(ZepEditor& editor, IZepReplProvider* pProvider);
-
-const std::string PromptString = ">> ";
-const std::string ContinuationString = ".. ";
 
 } // namespace Zep

@@ -178,6 +178,7 @@ private:
     void UpdateMarkers();
     void UpdateAirline();
     void UpdateScrollers();
+    void MarkBufferLinesDirty(long startLine, long endLine);
     void UpdateLineSpans(long startBufferLine = 0, long endBufferLine = -1);
     void EnsureCursorVisible();
     void UpdateVisibleLineRange();

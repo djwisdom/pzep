@@ -126,36 +126,56 @@ endif()
 
 # Link REPL provider libraries
 if(ENABLE_LUA_REPL)
-    target_link_libraries(Zep PRIVATE Lua::Lua)
-    target_compile_definitions(Zep INTERFACE ZEP_ENABLE_LUA_REPL)
+    # Lua: vcpkg provides LUA_INCLUDE_DIR and LUA_LIBRARIES variables
+    if(TARGET Lua::Lua)
+        target_link_libraries(Zep PRIVATE Lua::Lua)
+    elseif(LUA_INCLUDE_DIR AND LUA_LIBRARIES)
+        target_include_directories(Zep PRIVATE ${LUA_INCLUDE_DIR})
+        target_link_libraries(Zep PRIVATE ${LUA_LIBRARIES})
+    else()
+        message(FATAL_ERROR "Lua not found. Install Lua or set LUA_INCLUDE_DIR and LUA_LIBRARIES.")
+    endif()
+    target_compile_definitions(Zep PRIVATE ZEP_ENABLE_LUA_REPL)
 endif()
+
 if(ENABLE_DUKTAPE_REPL)
-    # Duktape is typically header-only or single-source; if found via vcpkg use imported target
-    if(TARGET duktape::duktape)
-        target_link_libraries(Zep PRIVATE duktape::duktape)
+    # Duktape: vcpkg provides DUKTAPE_INCLUDE_DIRS and DUKTAPE_LIBRARIES
+    find_package(duktape CONFIG QUIET)
+    if(duktape_FOUND AND DUKTAPE_INCLUDE_DIRS AND DUKTAPE_LIBRARIES)
+        target_include_directories(Zep PRIVATE ${DUKTAPE_INCLUDE_DIRS})
+        target_link_libraries(Zep PRIVATE ${DUKTAPE_LIBRARIES})
     else()
-        # Assume duktape.c will be compiled separately or is included elsewhere
-        message(WARNING "Duktape target not found – ensure duktape.c is compiled")
-    endif()
-    target_compile_definitions(Zep INTERFACE ZEP_ENABLE_DUKTAPE_REPL)
-endif()
-if(ENABLE_QUICKJS_REPL)
-    # QuickJS: try to find via pkg-config or vcpkg
-    find_package(QuickJS QUIET)
-    if(QuickJS_FOUND)
-        target_link_libraries(Zep PRIVATE QuickJS::QuickJS)
-    else()
-        # Look for system quickjs.h and libquickjs
-        find_path(QUICKJS_INCLUDE_DIR NAMES quickjs.h)
-        find_library(QUICKJS_LIBRARY NAMES quickjs)
-        if(QUICKJS_INCLUDE_DIR AND QUICKJS_LIBRARY)
-            target_include_directories(Zep PRIVATE ${QUICKJS_INCLUDE_DIR})
-            target_link_libraries(Zep PRIVATE ${QUICKJS_LIBRARY})
-        else()
-            message(WARNING "QuickJS not found – either install via vcpkg (quickjs) or set QUICKJS_INCLUDE_DIR/QUICKJS_LIBRARY")
+        # Fallback: build from bundled source
+        if(NOT TARGET duktape_lib)
+            add_library(duktape_lib STATIC ${ZEP_ROOT}/third_party/duktape/src/duktape.c)
+            target_include_directories(duktape_lib PUBLIC ${ZEP_ROOT}/third_party/duktape/src)
         endif()
+        target_link_libraries(Zep PRIVATE duktape_lib)
     endif()
-    target_compile_definitions(Zep INTERFACE ZEP_ENABLE_QUICKJS_REPL)
+    target_compile_definitions(Zep PRIVATE ZEP_ENABLE_DUKTAPE_REPL)
+endif()
+
+if(ENABLE_QUICKJS_REPL)
+    # QuickJS-NG: vcpkg provides qjs target and QJS_INCLUDE_DIR, QJS_LIBRARY
+    find_package(qjs CONFIG QUIET)
+    if(TARGET qjs)
+        target_link_libraries(Zep PRIVATE qjs)
+    else()
+        # Fallback: build from bundled original QuickJS source
+        if(NOT TARGET quickjs_lib)
+            add_library(quickjs_lib STATIC
+                ${ZEP_ROOT}/third_party/quickjs/quickjs.c
+                ${ZEP_ROOT}/third_party/quickjs/quickjs-libc.c
+                ${ZEP_ROOT}/third_party/quickjs/cutils.c
+                ${ZEP_ROOT}/third_party/quickjs/dtoa.c
+                ${ZEP_ROOT}/third_party/quickjs/libregexp.c
+                ${ZEP_ROOT}/third_party/quickjs/libunicode.c
+            )
+            target_include_directories(quickjs_lib PUBLIC ${ZEP_ROOT}/third_party/quickjs)
+        endif()
+        target_link_libraries(Zep PRIVATE quickjs_lib)
+    endif()
+    target_compile_definitions(Zep PRIVATE ZEP_ENABLE_QUICKJS_REPL)
 endif()
 
 # Set locations for components

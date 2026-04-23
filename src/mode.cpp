@@ -1,5 +1,6 @@
 #include "zep/mode.h"
 #include "zep/buffer.h"
+#include "zep/commands.h"
 #include "zep/editor.h"
 #include "zep/filesystem.h"
 #include "zep/mcommon/logger.h"
@@ -352,7 +353,7 @@ std::string ZepMode::ConvertInputToMapString(uint32_t key, uint32_t modifierKeys
     }
     else
     {
-        str += std::string((const char*)&key);
+        str += utf8_from_codepoint(key);
     }
 
     return brackets ? "<" + str + ">" : str;
@@ -562,6 +563,14 @@ void ZepMode::AddCommand(std::shared_ptr<ZepCommand> spCmd)
     auto& redoStack = m_pCurrentWindow->GetBuffer().GetRedoStack();
 
     spCmd->Redo();
+
+    // Mark buffer as dirty for commands that actually modify the buffer.
+    // Group markers are non-modifying administrative commands, so skip them.
+    if (!std::dynamic_pointer_cast<ZepCommand_GroupMarker>(spCmd) && !std::dynamic_pointer_cast<ZepCommand_EndGroup>(spCmd))
+    {
+        GetCurrentWindow()->GetBuffer().SetFileFlags(FileFlags::Dirty, true);
+    }
+
     undoStack.push(spCmd);
 
     // Can't redo anything beyond this point

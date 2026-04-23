@@ -1,0 +1,6 @@
+Testing Unicode input fix
+The fix addresses the core issue where Unicode codepoints > 127 were incorrectly converted to strings by treating the integer's memory as a C-string.
+
+The fix uses utf8_from_codepoint() from zep/mcommon/string/stringutils.h to properly encode Unicode codepoints as UTF-8.
+Testing characters: café, naïve, résumé, pi (π), sum (Σ), infinity (∞)
+日本語, 中文, 한국어, العربية, русский

@@ -16,6 +16,24 @@
 namespace Zep
 {
 
+// Lua REPL Provider implementation
+class LuaReplProvider : public IZepReplProvider
+{
+public:
+    LuaReplProvider();
+    ~LuaReplProvider();
+    void Initialize(ZepEditor* pEditor);
+    std::string ReplParse(ZepBuffer& text, const GlyphIterator& cursorOffset, ReplParseType type) override;
+    std::string ReplParse(const std::string& text) override;
+    bool ReplIsFormComplete(const std::string& input, int& depth) override;
+
+private:
+    ZepEditor* m_pEditor = nullptr;
+    lua_State* L = nullptr;
+    std::unique_ptr<std::string> m_printOutput;
+    std::shared_ptr<EditorCapability> m_edCap;
+};
+
 namespace
 {
 

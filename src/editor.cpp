@@ -2,6 +2,7 @@
 #include "zep/filesystem.h"
 #include "zep/git.h"
 #include "zep/indexer.h"
+#include "zep/mode_repl.h"
 #include "zep/mode_search.h"
 #include "zep/mode_standard.h"
 #include "zep/mode_tree.h"
@@ -12,6 +13,7 @@
 
 #include "config_app.h"
 
+#include <algorithm>
 #include <unordered_set>
 
 namespace Zep
@@ -297,6 +299,8 @@ void ZepEditor::SaveBuffer(ZepBuffer& buffer)
         else
         {
             strText << "Wrote " << buffer.GetFilePath().string() << ", " << size << " bytes";
+            // Clear dirty flag after successful save
+            buffer.ClearFileFlags(FileFlags::Dirty);
         }
     }
     SetCommandText(strText.str());
@@ -311,7 +315,7 @@ std::vector<ZepWindow*> ZepEditor::FindBufferWindows(const ZepBuffer* pBuffer) c
         {
             if (&win->GetBuffer() == pBuffer)
             {
-                bufferWindows.push_back(win);
+                bufferWindows.push_back(win.get());
             }
         }
     }
@@ -583,7 +587,8 @@ float ZepEditor::GetLastEditElapsedTime() const
 
 void ZepEditor::NextTabWindow()
 {
-    auto itr = std::find(m_tabWindows.begin(), m_tabWindows.end(), m_pActiveTabWindow);
+    auto itr = std::find_if(m_tabWindows.begin(), m_tabWindows.end(),
+        [&](const std::unique_ptr<ZepTabWindow>& ptr) { return ptr.get() == m_pActiveTabWindow; });
     if (itr != m_tabWindows.end())
         itr++;
 
@@ -596,7 +601,8 @@ void ZepEditor::NextTabWindow()
 
 void ZepEditor::PreviousTabWindow()
 {
-    auto itr = std::find(m_tabWindows.begin(), m_tabWindows.end(), m_pActiveTabWindow);
+    auto itr = std::find_if(m_tabWindows.begin(), m_tabWindows.end(),
+        [&](const std::unique_ptr<ZepTabWindow>& ptr) { return ptr.get() == m_pActiveTabWindow; });
     if (itr == m_tabWindows.end())
     {
         return;
@@ -625,7 +631,8 @@ void ZepEditor::SetCurrentWindow(ZepWindow* pWindow)
 void ZepEditor::SetCurrentTabWindow(ZepTabWindow* pTabWindow)
 {
     // Sanity
-    auto itr = std::find(m_tabWindows.begin(), m_tabWindows.end(), pTabWindow);
+    auto itr = std::find_if(m_tabWindows.begin(), m_tabWindows.end(),
+        [&](const std::unique_ptr<ZepTabWindow>& ptr) { return ptr.get() == pTabWindow; });
     if (itr != m_tabWindows.end())
     {
         m_pActiveTabWindow = pTabWindow;
@@ -662,7 +669,7 @@ void ZepEditor::UpdateTabs()
 
             spTabRegionTab->color = tabColor;
             spTabRegionTab->debugName = name;
-            spTabRegionTab->pTabWindow = window;
+            spTabRegionTab->pTabWindow = window.get();
             spTabRegionTab->fixed_size = NVec2f(tabLength, 0.0f);
             spTabRegionTab->layoutType = RegionLayoutType::HBox;
             spTabRegionTab->padding = DPI_VEC2(NVec2f(textBorder, textBorder));

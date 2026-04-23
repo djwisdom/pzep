@@ -115,7 +115,18 @@ int main(int argc, char* argv[])
         // Only actually close if not caused by ESC (and not ESC being held)
         if (shouldClose && !IsKeyDown(KEY_ESCAPE))
         {
-            break;
+            // Check for unsaved changes before quitting
+            ZepBuffer* pBuffer = editor.GetActiveBuffer();
+            if (pBuffer && pBuffer->HasFileFlags(FileFlags::Dirty))
+            {
+                // Prevent closing without saving, mimic :q behavior
+                editor.SetCommandText("E37: No write since last change (add ! to override)");
+                // Do not break; stay in loop
+            }
+            else
+            {
+                break;
+            }
         }
 
         // Check if window was resized and update Zep display region
@@ -186,7 +197,15 @@ int main(int argc, char* argv[])
         // Handle Ctrl+Q to quit (alternative to :q)
         if (IsKeyPressed(KEY_Q) && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)))
         {
-            break;
+            ZepBuffer* pBuffer = editor.GetActiveBuffer();
+            if (pBuffer && pBuffer->HasFileFlags(FileFlags::Dirty))
+            {
+                editor.SetCommandText("No write since last change (add ! to override or save)");
+            }
+            else
+            {
+                break;
+            }
         }
 
         // Handle :q - quit when command text starts with :q or :q!

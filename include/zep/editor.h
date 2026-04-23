@@ -58,6 +58,7 @@ class ZepGit;
 class ZepWindow;
 class ZepTabWindow;
 class ZepEditor;
+struct IZepReplProvider;
 
 struct Region;
 
@@ -381,7 +382,7 @@ public:
     void SetCurrentTabWindow(ZepTabWindow* pTabWindow);
     void SetCurrentWindow(ZepWindow* pWindow);
     ZepTabWindow* GetActiveTabWindow() const;
-    std::unique_ptr<ZepTabWindow> AddTabWindow();
+    ZepTabWindow* AddTabWindow();
     void RemoveTabWindow(ZepTabWindow* pTabWindow);
     const tTabWindows& GetTabWindows() const;
     ZepWindow* GetActiveWindow() const;

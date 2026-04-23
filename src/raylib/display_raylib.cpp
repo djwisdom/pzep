@@ -1,6 +1,7 @@
 #include "zep/raylib/display_raylib.h"
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 // Note: Don't include windows.h - it conflicts with raylib function names
 
@@ -49,8 +50,11 @@ NVec2f ZepFont_Raylib::GetTextSize(const uint8_t* pBegin, const uint8_t* pEnd) c
     if (pEnd == nullptr)
         pEnd = pBegin + strlen((const char*)pBegin);
 
-    // Use m_pixelHeight which is now 32 (matches font atlas)
-    float width = MeasureTextEx(m_font, (const char*)pBegin, (float)m_pixelHeight, 1.0f).x;
+    size_t len = pEnd - pBegin;
+    std::string buffer;
+    buffer.assign((const char*)pBegin, len);
+
+    float width = MeasureTextEx(m_font, buffer.c_str(), (float)m_pixelHeight, 1.0f).x;
     return NVec2f(width, (float)m_pixelHeight);
 }
 
@@ -127,6 +131,10 @@ void ZepDisplay_Raylib::DrawChars(ZepFont& font, const NVec2f& pos, const NVec4f
     if (text_end == nullptr)
         text_end = text_begin + strlen((const char*)text_begin);
 
+    size_t len = text_end - text_begin;
+    std::string buffer;
+    buffer.assign((const char*)text_begin, len);
+
     Color c = {
         (unsigned char)(col.x * 255.0f),
         (unsigned char)(col.y * 255.0f),
@@ -138,12 +146,14 @@ void ZepDisplay_Raylib::DrawChars(ZepFont& font, const NVec2f& pos, const NVec4f
     if (fontSize <= 0)
         fontSize = 16;
 
-    // Round position to integer to avoid pixel alignment issues
     float x = roundf(pos.x);
     float y = roundf(pos.y);
 
-    // Use spacing of 1.0 to match MeasureTextEx in GetTextSize
-    DrawTextEx(m_defaultFont, (const char*)text_begin, { x, y }, (float)fontSize, 1.0f, c);
+    // Get the underlying raylib font from the ZepFont implementation
+    const ZepFont_Raylib* pRayFont = dynamic_cast<const ZepFont_Raylib*>(&font);
+    ::Font raylibFont = pRayFont ? pRayFont->GetRaylibFont() : m_defaultFont;
+
+    DrawTextEx(raylibFont, buffer.c_str(), { x, y }, (float)fontSize, 1.0f, c);
 }
 
 void ZepDisplay_Raylib::DrawRectFilled(const NRectf& rc, const NVec4f& col) const
