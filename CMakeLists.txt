@@ -36,7 +36,7 @@ endif()
 
 project(Zep
     LANGUAGES CXX C
-    VERSION 0.5.14
+    VERSION 0.5.15
 )
 
 # Find Lua if enabled
