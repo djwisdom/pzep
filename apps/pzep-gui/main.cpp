@@ -63,6 +63,12 @@ int main(int argc, char* argv[])
 #if defined(ZEP_ENABLE_LUA_REPL)
     RegisterLuaReplProvider(editor);
 #endif
+#if defined(ZEP_ENABLE_DUKTAPE_REPL)
+    RegisterDuktapeReplProvider(editor);
+#endif
+#if defined(ZEP_ENABLE_QUICKJS_REPL)
+    RegisterQuickJSEvalReplProvider(editor);
+#endif
 
     // Load file from command line argument or create new "untitled" buffer
     ZepBuffer* buffer = editor.InitWithFileOrDir(file);

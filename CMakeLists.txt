@@ -45,6 +45,17 @@ if(ENABLE_LUA_REPL)
     message(STATUS "Lua found: ${LUA_VERSION_STRING}")
 endif()
 
+# Find Duktape if enabled (header-only, but may have CMake package)
+if(ENABLE_DUKTAPE_REPL)
+    find_package(duktape CONFIG QUIET)
+    if(duktape_FOUND)
+        message(STATUS "Duktape found via CMake config")
+    else()
+        message(STATUS "Duktape not found via find_package - will use bundled or assume source available")
+        # Duktape is typically single-source; if not installed, source must be present
+    endif()
+endif()
+
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
 # Generate version information with git hash

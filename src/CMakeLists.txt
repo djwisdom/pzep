@@ -129,6 +129,16 @@ if(ENABLE_LUA_REPL)
     target_link_libraries(Zep PRIVATE Lua::Lua)
     target_compile_definitions(Zep INTERFACE ZEP_ENABLE_LUA_REPL)
 endif()
+if(ENABLE_DUKTAPE_REPL)
+    # Duktape is typically header-only or single-source; if found via vcpkg use imported target
+    if(TARGET duktape::duktape)
+        target_link_libraries(Zep PRIVATE duktape::duktape)
+    else()
+        # Assume duktape.c will be compiled separately or is included elsewhere
+        message(WARNING "Duktape target not found – ensure duktape.c is compiled")
+    endif()
+    target_compile_definitions(Zep INTERFACE ZEP_ENABLE_DUKTAPE_REPL)
+endif()
 
 # Set locations for components
 set_target_properties(Zep PROPERTIES
