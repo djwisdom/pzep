@@ -104,7 +104,8 @@ void ZepRegressExCommand::Tick()
     {
         if (tabWindows.size() > 1)
         {
-            GetEditor().RemoveTabWindow(*select_randomly(tabWindows.begin(), tabWindows.end()));
+            auto it = select_randomly(tabWindows.begin(), tabWindows.end());
+            GetEditor().RemoveTabWindow(it->get());
         }
     }
 
@@ -114,11 +115,13 @@ void ZepRegressExCommand::Tick()
 
     if (fRand1 > .5f && windows.size() > 1)
     {
-        pTab->RemoveWindow(*select_randomly(windows.begin(), windows.end()));
+        auto it = select_randomly(windows.begin(), windows.end());
+        pTab->RemoveWindow(it->get());
     }
     else if (windows.size() < 10)
     {
-        pTab->AddWindow(&pActiveWindow->GetBuffer(), *select_randomly(windows.begin(), windows.end()), fRand2 > .5f ? RegionLayoutType::HBox : RegionLayoutType::VBox);
+        auto it = select_randomly(windows.begin(), windows.end());
+        pTab->AddWindow(&pActiveWindow->GetBuffer(), it->get(), fRand2 > .5f ? RegionLayoutType::HBox : RegionLayoutType::VBox);
     }
     GetEditor().RequestRefresh();
 }

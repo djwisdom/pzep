@@ -39,7 +39,7 @@ void LayoutRegion(Region& region)
     currentRect.Adjust(region.margin.x, region.margin.y, -region.margin.z, -region.margin.w);
 
     auto remaining = ((region.layoutType == RegionLayoutType::HBox) ? currentRect.Width() : currentRect.Height()) - (totalFixedSize + padding);
-    auto perExpanding = remaining / expanders;
+    auto perExpanding = expanders > 0.0f ? (remaining / expanders) : 0.0f;
 
     perExpanding = std::max(0.0f, perExpanding);
 

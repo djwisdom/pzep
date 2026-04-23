@@ -3,6 +3,7 @@
 #include "zep/filesystem.h"
 #include "zep/mcommon/logger.h"
 #include "zep/mode_repl.h"
+#include "zep/repl_capabilities.h"
 #include "zep/tab_window.h"
 #include "zep/window.h"
 
@@ -17,167 +18,147 @@ namespace Zep
 
 namespace
 {
-// Helper to convert ZepBuffer* to Lua userdata
-void pushBuffer(lua_State* L, ZepBuffer* buf)
+
+// ============================================================
+// Lua-side Capability Object Representation
+// ============================================================
+
+// Store shared_ptr<BufferCapability> as Lua userdata
+void pushBufferCapability(lua_State* L, std::shared_ptr<BufferCapability> bufCap)
 {
-    ZepBuffer** ud = (ZepBuffer**)lua_newuserdata(L, sizeof(ZepBuffer*));
-    *ud = buf;
-    luaL_getmetatable(L, "ZepBuffer");
+    // Create userdata containing shared_ptr
+    std::shared_ptr<BufferCapability>* ud = (std::shared_ptr<BufferCapability>*)lua_newuserdata(L, sizeof(std::shared_ptr<BufferCapability>));
+    new (ud) std::shared_ptr<BufferCapability>(std::move(bufCap));
+    luaL_getmetatable(L, "ZepBufferCap");
     lua_setmetatable(L, -2);
 }
 
-ZepBuffer* checkBuffer(lua_State* L, int idx)
+std::shared_ptr<BufferCapability> checkBufferCapability(lua_State* L, int idx)
 {
-    return *(ZepBuffer**)lua_touserdata(L, idx);
+    void* ud = lua_touserdata(L, idx);
+    if (!ud)
+    {
+        luaL_error(L, "Expected BufferCapability userdata");
+        return nullptr;
+    }
+    std::shared_ptr<BufferCapability>* pShared = (std::shared_ptr<BufferCapability>*)ud;
+    return *pShared;
 }
 
-ZepEditor* checkEditor(lua_State* L, int idx)
+// Store shared_ptr<EditorCapability> as Lua userdata
+void pushEditorCapability(lua_State* L, std::shared_ptr<EditorCapability> edCap)
 {
-    return *(ZepEditor**)lua_touserdata(L, idx);
+    std::shared_ptr<EditorCapability>* ud = (std::shared_ptr<EditorCapability>*)lua_newuserdata(L, sizeof(std::shared_ptr<EditorCapability>));
+    new (ud) std::shared_ptr<EditorCapability>(std::move(edCap));
+    luaL_getmetatable(L, "ZepEditorCap");
+    lua_setmetatable(L, -2);
 }
 
-// Buffer method: GetName()
-static int buf_GetName(lua_State* L)
+std::shared_ptr<EditorCapability> checkEditorCapability(lua_State* L, int idx)
 {
-    ZepBuffer* buf = checkBuffer(L, 1);
-    const std::string& name = buf->GetName();
+    void* ud = lua_touserdata(L, idx);
+    if (!ud)
+    {
+        luaL_error(L, "Expected EditorCapability userdata");
+        return nullptr;
+    }
+    std::shared_ptr<EditorCapability>* pShared = (std::shared_ptr<EditorCapability>*)ud;
+    return *pShared;
+}
+
+// Helper: convert std::vector<std::string> to Lua table (for audit)
+void pushStringVector(lua_State* L, const std::vector<std::string>& vec)
+{
+    lua_newtable(L);
+    for (size_t i = 0; i < vec.size(); ++i)
+    {
+        lua_pushlstring(L, vec[i].c_str(), vec[i].size());
+        lua_rawseti(L, -2, i + 1);
+    }
+}
+
+// ============================================================
+// BufferCapability Lua Methods
+// ============================================================
+
+static int bufcap_GetName(lua_State* L)
+{
+    auto bufCap = checkBufferCapability(L, 1);
+    std::string name = bufCap->GetName();
     lua_pushlstring(L, name.c_str(), name.size());
     return 1;
 }
 
-// Buffer method: GetLength() - number of bytes
-static int buf_GetLength(lua_State* L)
+static int bufcap_GetLength(lua_State* L)
 {
-    ZepBuffer* buf = checkBuffer(L, 1);
-    lua_pushinteger(L, (lua_Integer)buf->GetLength());
+    auto bufCap = checkBufferCapability(L, 1);
+    lua_pushinteger(L, (lua_Integer)bufCap->GetLength());
     return 1;
 }
 
-// Buffer method: GetLineCount()
-static int buf_GetLineCount(lua_State* L)
+static int bufcap_GetLineCount(lua_State* L)
 {
-    ZepBuffer* buf = checkBuffer(L, 1);
-    lua_pushinteger(L, (lua_Integer)buf->GetLineCount());
+    auto bufCap = checkBufferCapability(L, 1);
+    lua_pushinteger(L, (lua_Integer)bufCap->GetLineCount());
     return 1;
 }
 
-// Buffer method: GetLineText(line)
-static int buf_GetLineText(lua_State* L)
+static int bufcap_GetLineText(lua_State* L)
 {
-    ZepBuffer* buf = checkBuffer(L, 1);
+    auto bufCap = checkBufferCapability(L, 1);
     long line = (long)luaL_checkinteger(L, 2);
-    std::string text = buf->GetLineText(line);
+    std::string text = bufCap->GetLineText(line);
     lua_pushlstring(L, text.c_str(), text.size());
     return 1;
 }
 
-// Buffer method: GetCursor() -> {line=, column=}
-static int buf_GetCursor(lua_State* L)
+static int bufcap_GetCursor(lua_State* L)
 {
-    ZepBuffer* buf = checkBuffer(L, 1);
-    ZepEditor& ed = buf->GetEditor();
-    ZepTabWindow* tab = ed.GetActiveTabWindow();
-    if (!tab)
-    {
-        lua_pushnil(L);
-        return 1;
-    }
-    ZepWindow* win = tab->GetActiveWindow();
-    if (!win || &win->GetBuffer() != buf)
-    {
-        lua_pushnil(L);
-        return 1;
-    }
-    GlyphIterator it = win->GetBufferCursor();
-    long line = buf->GetBufferLine(it);
-    long col = buf->GetBufferColumn(it);
+    ZEP_UNUSED(L);
+    auto bufCap = checkBufferCapability(L, 1);
+    auto cursor = bufCap->GetCursor();
     lua_newtable(L);
-    lua_pushinteger(L, (lua_Integer)line);
+    lua_pushinteger(L, (lua_Integer)cursor.first);
     lua_setfield(L, -2, "line");
-    lua_pushinteger(L, (lua_Integer)col);
+    lua_pushinteger(L, (lua_Integer)cursor.second);
     lua_setfield(L, -2, "column");
     return 1;
 }
 
-// Buffer method: Insert(line, column, text)
-static int buf_Insert(lua_State* L)
+static int bufcap_IsModified(lua_State* L)
 {
-    ZepBuffer* buf = checkBuffer(L, 1);
-    int line = (int)luaL_checkinteger(L, 2);
-    int col = (int)luaL_checkinteger(L, 3);
-    const char* text = luaL_checkstring(L, 4);
+    auto bufCap = checkBufferCapability(L, 1);
+    lua_pushboolean(L, bufCap->IsModified());
+    return 1;
+}
 
-    ByteRange range;
-    if (!buf->GetLineOffsets(line, range))
+// Note: No Insert/Replace/Save methods - those are denied in capability
+
+// ============================================================
+// EditorCapability Lua Methods
+// ============================================================
+
+static int edcap_GetBuffers(lua_State* L)
+{
+    auto edCap = checkEditorCapability(L, 1);
+    auto buffers = edCap->GetBuffers();
+    lua_newtable(L);
+    int idx = 1;
+    for (const auto& bufCap : buffers)
     {
-        return luaL_error(L, "Invalid line %d", line);
+        pushBufferCapability(L, bufCap);
+        lua_rawseti(L, -2, idx++);
     }
+    return 1;
+}
 
-    GlyphIterator it(buf, range.first);
-    // Advance 'col' characters
-    for (int i = 0; i < col; ++i)
+static int edcap_GetActiveBuffer(lua_State* L)
+{
+    auto edCap = checkEditorCapability(L, 1);
+    auto bufCap = edCap->GetActiveBuffer();
+    if (bufCap)
     {
-        if (it.Index() >= range.second)
-        {
-            it = GlyphIterator(buf, range.second);
-            break;
-        }
-        ++it;
-    }
-
-    ChangeRecord cr;
-    bool ok = buf->Insert(it, std::string(text), cr);
-    lua_pushboolean(L, ok);
-    return 1;
-}
-
-// Buffer method: ReplaceLine(line, text)
-static int buf_ReplaceLine(lua_State* L)
-{
-    ZepBuffer* buf = checkBuffer(L, 1);
-    long line = (long)luaL_checkinteger(L, 2);
-    const char* text = luaL_checkstring(L, 3);
-
-    ByteRange range;
-    if (!buf->GetLineOffsets(line, range))
-    {
-        return luaL_error(L, "Invalid line %ld", line);
-    }
-
-    GlyphIterator start(buf, range.first);
-    GlyphIterator end(buf, range.second);
-    ChangeRecord cr;
-    bool ok = buf->Replace(start, end, std::string(text), ReplaceRangeMode::Replace, cr);
-    lua_pushboolean(L, ok);
-    return 1;
-}
-
-// Buffer method: Save()
-static int buf_Save(lua_State* L)
-{
-    ZepBuffer* buf = checkBuffer(L, 1);
-    int64_t size = 0;
-    bool ok = buf->Save(size);
-    lua_pushboolean(L, ok);
-    return 1;
-}
-
-// Buffer method: IsModified()
-static int buf_IsModified(lua_State* L)
-{
-    ZepBuffer* buf = checkBuffer(L, 1);
-    lua_pushboolean(L, buf->IsModified());
-    return 1;
-}
-
-// Editor method: GetActiveBuffer()
-static int ed_GetActiveBuffer(lua_State* L)
-{
-    ZepEditor* ed = checkEditor(L, 1);
-    ZepBuffer* buf = ed->GetActiveBuffer();
-    if (buf)
-    {
-        pushBuffer(L, buf);
+        pushBufferCapability(L, std::move(bufCap));
     }
     else
     {
@@ -186,25 +167,103 @@ static int ed_GetActiveBuffer(lua_State* L)
     return 1;
 }
 
-// Editor method: GetBuffers() -> array of buffers
-static int ed_GetBuffers(lua_State* L)
+static int edcap_GetVersion(lua_State* L)
 {
-    ZepEditor* ed = checkEditor(L, 1);
-    const auto& buffers = ed->GetBuffers();
-    lua_newtable(L);
-    int idx = 1;
-    for (const auto& buf : buffers)
-    {
-        pushBuffer(L, buf.get());
-        lua_rawseti(L, -2, idx++);
-    }
+    auto edCap = checkEditorCapability(L, 1);
+    std::string version = edCap->GetEditorVersion();
+    lua_pushlstring(L, version.c_str(), version.size());
     return 1;
 }
 
-// Lua print function that captures output
+// ============================================================
+// Garbage Collection for userdata (shared_ptr destruction)
+// ============================================================
+
+static int bufcap_gc(lua_State* L)
+{
+    void* ud = lua_touserdata(L, 1);
+    if (ud)
+    {
+        std::shared_ptr<BufferCapability>* pShared = (std::shared_ptr<BufferCapability>*)ud;
+        pShared->~shared_ptr<BufferCapability>();
+    }
+    return 0;
+}
+
+static int edcap_gc(lua_State* L)
+{
+    void* ud = lua_touserdata(L, 1);
+    if (ud)
+    {
+        std::shared_ptr<EditorCapability>* pShared = (std::shared_ptr<EditorCapability>*)ud;
+        pShared->~shared_ptr<EditorCapability>();
+    }
+    return 0;
+}
+
+// ============================================================
+// Metatable Registration
+// ============================================================
+
+void registerBufferCapabilityMetatable(lua_State* L)
+{
+    luaL_newmetatable(L, "ZepBufferCap");
+    lua_newtable(L);
+
+    lua_pushcfunction(L, bufcap_GetName);
+    lua_setfield(L, -2, "GetName");
+
+    lua_pushcfunction(L, bufcap_GetLength);
+    lua_setfield(L, -2, "GetLength");
+
+    lua_pushcfunction(L, bufcap_GetLineCount);
+    lua_setfield(L, -2, "GetLineCount");
+
+    lua_pushcfunction(L, bufcap_GetLineText);
+    lua_setfield(L, -2, "GetLineText");
+
+    lua_pushcfunction(L, bufcap_GetCursor);
+    lua_setfield(L, -2, "GetCursor");
+
+    lua_pushcfunction(L, bufcap_IsModified);
+    lua_setfield(L, -2, "IsModified");
+
+    // __gc for shared_ptr cleanup
+    lua_pushcfunction(L, bufcap_gc);
+    lua_setfield(L, -2, "__gc");
+
+    lua_setfield(L, -2, "__index");
+    lua_pop(L, 1);
+}
+
+void registerEditorCapabilityMetatable(lua_State* L)
+{
+    luaL_newmetatable(L, "ZepEditorCap");
+    lua_newtable(L);
+
+    lua_pushcfunction(L, edcap_GetBuffers);
+    lua_setfield(L, -2, "GetBuffers");
+
+    lua_pushcfunction(L, edcap_GetActiveBuffer);
+    lua_setfield(L, -2, "GetActiveBuffer");
+
+    lua_pushcfunction(L, edcap_GetVersion);
+    lua_setfield(L, -2, "GetVersion");
+
+    // __gc for shared_ptr cleanup
+    lua_pushcfunction(L, edcap_gc);
+    lua_setfield(L, -2, "__gc");
+
+    lua_setfield(L, -2, "__index");
+    lua_pop(L, 1);
+}
+
+// ============================================================
+// Print Capture
+// ============================================================
+
 static int l_print(lua_State* L)
 {
-    // Upvalue 1: pointer to std::string
     std::string* output = *(std::string**)lua_touserdata(L, lua_upvalueindex(1));
     int n = lua_gettop(L);
     for (int i = 1; i <= n; i++)
@@ -222,63 +281,17 @@ static int l_print(lua_State* L)
     return 0;
 }
 
-// Register Buffer metatable
-void registerBufferMetatable(lua_State* L)
-{
-    luaL_newmetatable(L, "ZepBuffer");
-    lua_newtable(L);
-    lua_pushcfunction(L, buf_GetName);
-    lua_setfield(L, -2, "GetName");
-    lua_pushcfunction(L, buf_GetLength);
-    lua_setfield(L, -2, "GetLength");
-    lua_pushcfunction(L, buf_GetLineCount);
-    lua_setfield(L, -2, "GetLineCount");
-    lua_pushcfunction(L, buf_GetLineText);
-    lua_setfield(L, -2, "GetLineText");
-    lua_pushcfunction(L, buf_GetCursor);
-    lua_setfield(L, -2, "GetCursor");
-    lua_pushcfunction(L, buf_Insert);
-    lua_setfield(L, -2, "Insert");
-    lua_pushcfunction(L, buf_ReplaceLine);
-    lua_setfield(L, -2, "ReplaceLine");
-    lua_pushcfunction(L, buf_Save);
-    lua_setfield(L, -2, "Save");
-    lua_pushcfunction(L, buf_IsModified);
-    lua_setfield(L, -2, "IsModified");
-    // __index points to this table
-    lua_setfield(L, -2, "__index");
-    lua_pop(L, 1);
-}
-
-// Register Editor metatable
-void registerEditorMetatable(lua_State* L)
-{
-    luaL_newmetatable(L, "ZepEditor");
-    lua_newtable(L);
-    lua_pushcfunction(L, ed_GetActiveBuffer);
-    lua_setfield(L, -2, "GetActiveBuffer");
-    lua_pushcfunction(L, ed_GetBuffers);
-    lua_setfield(L, -2, "GetBuffers");
-    lua_setfield(L, -2, "__index");
-    lua_pop(L, -1); // actually should be 1? careful: after second newtable, we set __index, then pop the method table, leaving metatable. Then pop metatable.
-    // The typical sequence:
-    // luaL_newmetatable(L, "ZepEditor");   // creates mt and leaves on stack
-    // lua_newtable(L);                    // methods table
-    // set methods...
-    // lua_setfield(L, -2, "__index");     // mt.__index = methods
-    // lua_pop(L, 1);                     // pop mt
-    // So after lua_setfield we have mt on top, then we pop.
-    // Already did that. We'll rewrite correctly below.
-}
-
 } // anonymous namespace
 
-// LuaReplProvider implementation
+// ============================================================
+// LuaReplProvider - Security-Sandboxed Implementation
+// ============================================================
 
 LuaReplProvider::LuaReplProvider()
     : m_pEditor(nullptr)
     , L(nullptr)
     , m_printOutput(std::make_unique<std::string>())
+    , m_edCap()
 {
 }
 
@@ -293,31 +306,56 @@ LuaReplProvider::~LuaReplProvider()
 void LuaReplProvider::Initialize(ZepEditor* pEditor)
 {
     m_pEditor = pEditor;
+
+    // Create capability-based API (sandbox)
+    m_edCap = CreateEditorCapability(pEditor);
+
+    // Create Lua state
     L = luaL_newstate();
-    // Open standard libraries
     luaL_openlibs(L);
-    // Remove dangerous globals
-    static const char* dangerous[] = { "io", "os", "package", "require", "dofile", "loadfile", "load", "debug", "module", nullptr };
+
+    // === SECURITY: Remove dangerous globals ===
+    static const char* dangerous[] = {
+        "io", // file I/O
+        "os", // system commands
+        "package", // module loading
+        "require", // dynamic loading
+        "dofile", // file execution
+        "loadfile", // file loading
+        "load", // arbitrary code generation
+        "debug", // introspection/mutation
+        "module", // legacy module system
+        nullptr
+    };
     for (int i = 0; dangerous[i]; i++)
     {
         lua_pushnil(L);
         lua_setglobal(L, dangerous[i]);
     }
-    // Capture print output
+
+    // === SECURITY: Sandboxed print ===
     lua_pushlightuserdata(L, m_printOutput.get());
     lua_pushcclosure(L, l_print, 1);
     lua_setglobal(L, "print");
 
-    // Register metatypes
-    registerBufferMetatable(L);
-    registerEditorMetatable(L);
+    // Register Capability metatypes
+    registerBufferCapabilityMetatable(L);
+    registerEditorCapabilityMetatable(L);
 
-    // Create editor userdata and set as global 'editor'
-    ZepEditor** ed_ud = (ZepEditor**)lua_newuserdata(L, sizeof(ZepEditor*));
-    *ed_ud = m_pEditor;
-    luaL_getmetatable(L, "ZepEditor");
+    // === EXPOSE CONTROL INTERFACE ===
+    // Push editor capability shared_ptr as userdata and set global 'editor'
+    std::shared_ptr<EditorCapability>* ed_ud = (std::shared_ptr<EditorCapability>*)lua_newuserdata(L, sizeof(std::shared_ptr<EditorCapability>));
+    new (ed_ud) std::shared_ptr<EditorCapability>(m_edCap);
+    luaL_getmetatable(L, "ZepEditorCap");
     lua_setmetatable(L, -2);
     lua_setglobal(L, "editor");
+
+    // For backwards compatibility, also expose as 'editor' (now capability-wrapped)
+    // Previously exposed raw ZepEditor*, now replaced with capability wrapper
+
+    // === AUDIT LOGGING ===
+    // Optionally expose audit interface (future extension)
+    // lua_pushlightuserdata(L, this);  // for callbacks to audit
 }
 
 std::string LuaReplProvider::ReplParse(const std::string& text)
@@ -364,7 +402,6 @@ std::string LuaReplProvider::ReplParse(const std::string& text)
         }
         else
         {
-            // Use tostring fallback
             lua_getglobal(L, "tostring");
             lua_pushvalue(L, i);
             lua_call(L, 1, 1);
@@ -376,7 +413,7 @@ std::string LuaReplProvider::ReplParse(const std::string& text)
         if (i < n)
             result += "\t";
     }
-    lua_pop(L, n); // clean stack
+    lua_pop(L, n);
 
     // Combine captured print output with result
     if (!m_printOutput->empty())
@@ -429,12 +466,10 @@ void RegisterLuaReplProvider(ZepEditor& editor)
 {
     auto provider = std::make_unique<LuaReplProvider>();
     provider->Initialize(&editor);
-    // Register REPL commands with the editor
     ZepReplExCommand::Register(editor, provider.get());
     ZepReplEvaluateCommand::Register(editor, provider.get());
     ZepReplEvaluateOuterCommand::Register(editor, provider.get());
     ZepReplEvaluateInnerCommand::Register(editor, provider.get());
-    // Transfer ownership to editor
     editor.RegisterReplProvider(std::move(provider));
 }
 

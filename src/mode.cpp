@@ -3,6 +3,7 @@
 #include "zep/editor.h"
 #include "zep/filesystem.h"
 #include "zep/mcommon/logger.h"
+#include "zep/mcommon/utf8.h"
 #include "zep/mode_search.h"
 #include "zep/regress.h"
 #include "zep/syntax.h"
@@ -365,18 +366,7 @@ void ZepMode::AddKeyPress(uint32_t key, uint32_t modifierKeys)
         return;
     }
 
-    // Temporarily accept up to 255; this is not fully allowing UTF8 input yet (though display and management of buffers with
-    // utf8 is just fine)
-    key &= 0xFF;
-
-    // Keys in this range converted to UTF8.  I need to figure out how to generically receive UTF8 here, but this
-    // temporary fix enables �-sign and other specials to display and work correctly
-    if (key >= 127 && key <= 255)
-    {
-
-        key = (0x00C2 | ((key & 0xFF) << 8));
-    }
-
+    // Allow full Unicode codepoints; no masking or transformation
     m_lastKey = key;
 
     // Get the new command by parsing out the keys

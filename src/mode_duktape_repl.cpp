@@ -2,6 +2,7 @@
 #include "zep/filesystem.h"
 #include "zep/mcommon/logger.h"
 #include "zep/mode_repl.h"
+#include "zep/repl_capabilities.h"
 #include "zep/tab_window.h"
 #include "zep/window.h"
 
@@ -24,204 +25,187 @@ namespace Zep
 
 namespace
 {
-// Helper to convert ZepBuffer* to void* for Duktape
-void* bufferToUserdata(ZepBuffer* buf)
-{
-    return static_cast<void*>(buf);
-}
 
-ZepBuffer* userdataToBuffer(duk_context* ctx, duk_idx_t idx)
-{
-    return static_cast<ZepBuffer*>(duk_get_pointer(ctx, idx));
-}
+// ============================================================
+// Duktape-side Capability Object Representation
+// ============================================================
 
-ZepEditor* editorToUserdata(duk_context* ctx, duk_idx_t idx)
+// Store shared_ptr<BufferCapability> as Duktape heap-allocated object with finalizer
+duk_ret_t bufcap_gc(duk_context* ctx)
 {
-    return static_cast<ZepEditor*>(duk_get_pointer(ctx, idx));
-}
-
-// === Buffer methods ===
-
-// buf:GetName() -> string
-static duk_ret_t buf_GetName(duk_context* ctx)
-{
-    ZepBuffer* buf = userdataToBuffer(ctx, 0);
-    const std::string& name = buf->GetName();
-    duk_push_lstring(ctx, name.c_str(), name.size());
-    return 1;
-}
-
-// buf:GetLength() -> number
-static duk_ret_t buf_GetLength(duk_context* ctx)
-{
-    ZepBuffer* buf = userdataToBuffer(ctx, 0);
-    duk_push_number(ctx, static_cast<duk_double_t>(buf->GetLength()));
-    return 1;
-}
-
-// buf:GetLineCount() -> number
-static duk_ret_t buf_GetLineCount(duk_context* ctx)
-{
-    ZepBuffer* buf = userdataToBuffer(ctx, 0);
-    duk_push_number(ctx, static_cast<duk_double_t>(buf->GetLineCount()));
-    return 1;
-}
-
-// buf:GetLineText(line) -> string
-static duk_ret_t buf_GetLineText(duk_context* ctx)
-{
-    ZepBuffer* buf = userdataToBuffer(ctx, 0);
-    long line = static_cast<long>(duk_get_number(ctx, 1));
-    std::string text = buf->GetLineText(line);
-    duk_push_lstring(ctx, text.c_str(), text.size());
-    return 1;
-}
-
-// buf:GetCursor() -> {line: number, column: number}
-static duk_ret_t buf_GetCursor(duk_context* ctx)
-{
-    ZepBuffer* buf = userdataToBuffer(ctx, 0);
-    ZepEditor& ed = buf->GetEditor();
-    ZepTabWindow* tab = ed.GetActiveTabWindow();
-    if (!tab)
+    void* ud = duk_get_pointer(ctx, 0);
+    if (ud)
     {
-        duk_push_null(ctx);
-        return 1;
+        auto* pShared = static_cast<std::shared_ptr<BufferCapability>*>(ud);
+        pShared->~shared_ptr<BufferCapability>();
     }
-    ZepWindow* win = tab->GetActiveWindow();
-    if (!win || &win->GetBuffer() != buf)
-    {
-        duk_push_null(ctx);
-        return 1;
-    }
-    GlyphIterator it = win->GetBufferCursor();
-    long line = buf->GetBufferLine(it);
-    long col = buf->GetBufferColumn(it);
-    duk_push_object(ctx);
-    duk_push_number(ctx, static_cast<duk_double_t>(line));
-    duk_put_prop_string(ctx, -2, "line");
-    duk_push_number(ctx, static_cast<duk_double_t>(col));
-    duk_put_prop_string(ctx, -2, "column");
-    return 1;
+    return 0;
 }
 
-// buf:Insert(line, column, text) -> boolean
-static duk_ret_t buf_Insert(duk_context* ctx)
+// BufferCapability -> JS object
+void pushBufferCapability(duk_context* ctx, std::shared_ptr<BufferCapability> bufCap)
 {
-    ZepBuffer* buf = userdataToBuffer(ctx, 0);
-    int line = static_cast<int>(duk_get_number(ctx, 1));
-    int col = static_cast<int>(duk_get_number(ctx, 2));
-    const char* text = duk_get_string(ctx, 3);
+    // Allocate userdata that holds shared_ptr
+    auto* ud = static_cast<std::shared_ptr<BufferCapability>*>(duk_push_pointer(ctx, nullptr));
+    new (ud) std::shared_ptr<BufferCapability>(std::move(bufCap));
 
-    ByteRange range;
-    if (!buf->GetLineOffsets(line, range))
-    {
-        duk_push_boolean(ctx, 0);
-        return 1;
-    }
+    // Create and set metatable with methods and __gc
+    duk_push_object(ctx); // proto
 
-    GlyphIterator it(buf, range.first);
-    int maxCol = static_cast<int>(range.second - range.first);
-    col = (col > maxCol) ? maxCol : col;
-    for (int i = 0; i < col && it.Index() < range.second; ++i)
-    {
-        ++it;
-    }
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto* pShared = static_cast<std::shared_ptr<BufferCapability>*>(duk_get_pointer(c, 0));
+        auto bufCap = *pShared;
+        std::string name = bufCap->GetName();
+        duk_push_lstring(c, name.c_str(), name.size());
+        return 1; }, 0);
+    duk_put_prop_string(ctx, -2, "GetName");
 
-    ChangeRecord cr;
-    bool ok = buf->Insert(it, std::string(text), cr);
-    duk_push_boolean(ctx, ok ? 1 : 0);
-    return 1;
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto* pShared = static_cast<std::shared_ptr<BufferCapability>*>(duk_get_pointer(c, 0));
+        auto bufCap = *pShared;
+        duk_push_number(c, static_cast<duk_double_t>(bufCap->GetLength()));
+        return 1; }, 0);
+    duk_put_prop_string(ctx, -2, "GetLength");
+
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto* pShared = static_cast<std::shared_ptr<BufferCapability>*>(duk_get_pointer(c, 0));
+        auto bufCap = *pShared;
+        duk_push_number(c, static_cast<duk_double_t>(bufCap->GetLineCount()));
+        return 1; }, 0);
+    duk_put_prop_string(ctx, -2, "GetLineCount");
+
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto* pShared = static_cast<std::shared_ptr<BufferCapability>*>(duk_get_pointer(c, 0));
+        auto bufCap = *pShared;
+        long line = static_cast<long>(duk_get_number(c, 1));
+        std::string text = bufCap->GetLineText(line);
+        duk_push_lstring(c, text.c_str(), text.size());
+        return 1; }, 0);
+    duk_put_prop_string(ctx, -2, "GetLineText");
+
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto* pShared = static_cast<std::shared_ptr<BufferCapability>*>(duk_get_pointer(c, 0));
+        auto bufCap = *pShared;
+        auto cursor = bufCap->GetCursor();
+        duk_push_object(c);
+        duk_push_number(c, static_cast<duk_double_t>(cursor.first));
+        duk_put_prop_string(c, -2, "line");
+        duk_push_number(c, static_cast<duk_double_t>(cursor.second));
+        duk_put_prop_string(c, -2, "column");
+        return 1; }, 0);
+    duk_put_prop_string(ctx, -2, "GetCursor");
+
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto* pShared = static_cast<std::shared_ptr<BufferCapability>*>(duk_get_pointer(c, 0));
+        auto bufCap = *pShared;
+        duk_push_boolean(c, bufCap->IsModified() ? 1 : 0);
+        return 1; }, 0);
+    duk_put_prop_string(ctx, -2, "IsModified");
+
+    // __gc finalizer
+    duk_push_c_function(ctx, bufcap_gc, 0);
+    duk_put_prop_string(ctx, -2, "__gc");
+
+    duk_set_prototype(ctx, -2); // userdata.__proto__ = proto
 }
 
-// buf:ReplaceLine(line, text) -> boolean
-static duk_ret_t buf_ReplaceLine(duk_context* ctx)
+// Retrieve shared_ptr<BufferCapability> from Duktape userdata at index
+std::shared_ptr<BufferCapability> checkBufferCapability(duk_context* ctx, duk_idx_t idx)
 {
-    ZepBuffer* buf = userdataToBuffer(ctx, 0);
-    long line = static_cast<long>(duk_get_number(ctx, 1));
-    const char* text = duk_get_string(ctx, 2);
-
-    ByteRange range;
-    if (!buf->GetLineOffsets(line, range))
+    void* ud = duk_get_pointer(ctx, idx);
+    if (!ud)
     {
-        duk_push_boolean(ctx, 0);
-        return 1;
+        duk_type_error(ctx, "Expected BufferCapability userdata");
+        return nullptr;
     }
-
-    GlyphIterator start(buf, range.first);
-    GlyphIterator end(buf, range.second);
-    ChangeRecord cr;
-    bool ok = buf->Replace(start, end, std::string(text), ReplaceRangeMode::Replace, cr);
-    duk_push_boolean(ctx, ok ? 1 : 0);
-    return 1;
+    auto* pShared = static_cast<std::shared_ptr<BufferCapability>*>(ud);
+    return *pShared;
 }
 
-// buf:Save() -> boolean
-static duk_ret_t buf_Save(duk_context* ctx)
+// Store shared_ptr<EditorCapability> as userdata
+void pushEditorCapability(duk_context* ctx, std::shared_ptr<EditorCapability> edCap)
 {
-    ZepBuffer* buf = userdataToBuffer(ctx, 0);
-    int64_t size = 0;
-    bool ok = buf->Save(size);
-    duk_push_boolean(ctx, ok ? 1 : 0);
-    return 1;
+    auto* ud = static_cast<std::shared_ptr<EditorCapability>*>(duk_push_pointer(ctx, nullptr));
+    new (ud) std::shared_ptr<EditorCapability>(std::move(edCap));
+
+    duk_push_object(ctx); // proto
+
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto* pShared = static_cast<std::shared_ptr<EditorCapability>*>(duk_get_pointer(c, 0));
+        auto edCap = *pShared;
+        auto buffers = edCap->GetBuffers();
+        duk_push_array(c);
+        for (size_t i = 0; i < buffers.size(); ++i)
+        {
+            // Push BufferCapability object
+            auto* buf_ud = static_cast<std::shared_ptr<BufferCapability>*>(duk_push_pointer(c, nullptr));
+            new(buf_ud) std::shared_ptr<BufferCapability>(buffers[i]);
+            duk_push_object(c);  // BufferCap proto (re-use same prototype)
+            // Note: prototype assignment deferred to Python side or via global
+            // For now, we push raw userdata with methods attached inline
+            // Actually Duktape has prototype chain; set prototype to global ZepBufferCap if available
+            duk_get_global_string(c, "ZepBufferCap");
+            duk_set_prototype(c, -2);
+            duk_put_prop_index(c, -3, i);
+        }
+        return 1; }, 0);
+    duk_put_prop_string(ctx, -2, "GetBuffers");
+
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto* pShared = static_cast<std::shared_ptr<EditorCapability>*>(duk_get_pointer(c, 0));
+        auto edCap = *pShared;
+        auto bufCap = edCap->GetActiveBuffer();
+        if (bufCap)
+        {
+            auto* buf_ud = static_cast<std::shared_ptr<BufferCapability>*>(duk_push_pointer(c, nullptr));
+            new(buf_ud) std::shared_ptr<BufferCapability>(std::move(bufCap));
+            duk_get_global_string(c, "ZepBufferCap");
+            duk_set_prototype(c, -2);
+        }
+        else
+        {
+            duk_push_null(c);
+        }
+        return 1; }, 0);
+    duk_put_prop_string(ctx, -2, "GetActiveBuffer");
+
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto* pShared = static_cast<std::shared_ptr<EditorCapability>*>(duk_get_pointer(c, 0));
+        auto edCap = *pShared;
+        duk_push_lstring(c, edCap->GetEditorVersion().c_str(), edCap->GetEditorVersion().size());
+        return 1; }, 0);
+    duk_put_prop_string(ctx, -2, "GetVersion");
+
+    // __gc
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        void* ud = duk_get_pointer(c, 0);
+        if (ud)
+        {
+            auto* pShared = static_cast<std::shared_ptr<EditorCapability>*>(ud);
+            pShared->~shared_ptr<EditorCapability>();
+        }
+        return 0; }, 0);
+    duk_put_prop_string(ctx, -2, "__gc");
+
+    duk_set_prototype(ctx, -2);
 }
 
-// buf:IsModified() -> boolean
-static duk_ret_t buf_IsModified(duk_context* ctx)
+std::shared_ptr<EditorCapability> checkEditorCapability(duk_context* ctx, duk_idx_t idx)
 {
-    ZepBuffer* buf = userdataToBuffer(ctx, 0);
-    duk_push_boolean(ctx, buf->IsModified() ? 1 : 0);
-    return 1;
-}
-
-// === Editor methods ===
-
-// editor:GetActiveBuffer() -> buffer|nil
-static duk_ret_t ed_GetActiveBuffer(duk_context* ctx)
-{
-    ZepEditor* ed = editorToUserdata(ctx, 0);
-    ZepBuffer* buf = ed->GetActiveBuffer();
-    if (buf)
+    void* ud = duk_get_pointer(ctx, idx);
+    if (!ud)
     {
-        // Push buffer userdata
-        ZepBuffer** ud = static_cast<ZepBuffer**>(duk_push_pointer(ctx, static_cast<void*>(buf)));
-            duk_push_c_function(ctx, [ctx) -> duk_ret_t {
-            // Return the buffer object itself
-            return 0;
-            }, 0);
-            // Simplified: just push a wrapper
-            duk_push_pointer(ctx, buf);
-            duk_push_string(ctx, "ZepBuffer");
-            duk_put_prop_string(ctx, -2, "\xff""__type");
+        duk_type_error(ctx, "Expected EditorCapability userdata");
+        return nullptr;
     }
-    else
-    {
-        duk_push_null(ctx);
-    }
-    return 1;
+    auto* pShared = static_cast<std::shared_ptr<EditorCapability>*>(ud);
+    return *pShared;
 }
 
-// editor:GetBuffers() -> array of buffers
-static duk_ret_t ed_GetBuffers(duk_context* ctx)
-{
-    ZepEditor* ed = editorToUserdata(ctx, 0);
-    const auto& buffers = ed->GetBuffers();
-    duk_push_array(ctx);
-    int idx = 0;
-    for (const auto& buf : buffers)
-    {
-        duk_push_pointer(ctx, buf.get());
-        // Mark as buffer type
-        duk_push_string(ctx, "ZepBuffer");
-        duk_put_prop_string(ctx, -2, "\xff"
-                                     "__type");
-        duk_put_prop(ctx, -3);
-        idx++;
-    }
-    return 1;
-}
+// ============================================================
+// Safe Print Capture
+// ============================================================
 
-// Safe print that captures output
 static duk_ret_t duk_print(duk_context* ctx)
 {
     std::ostringstream oss;
@@ -247,81 +231,124 @@ static duk_ret_t duk_print(duk_context* ctx)
             oss << "[object]";
         }
     }
-    // Store in upvalue (string*)
     std::string* output = *static_cast<std::string**>(duk_get_pointer(ctx, duk_upvalueindex(0)));
-    *output = oss.str();
+    output->append(oss.str());
     return 0;
 }
 
-// Register Buffer prototype
-void registerBufferPrototype(duk_context* ctx)
-{
-    duk_push_object(ctx); // Buffer proto
+// ============================================================
+// Prototype Registration
+// ============================================================
 
-    duk_push_c_function(ctx, buf_GetName, 0);
+void registerBufferCapabilityPrototype(duk_context* ctx)
+{
+    duk_push_object(ctx); // ZepBufferCap prototype
+
+    // Methods (same as Lua but as Duktape C functions)
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto bufCap = checkBufferCapability(c, 0);
+        duk_push_lstring(c, bufCap->GetName().c_str(), bufCap->GetName().size());
+        return 1; }, 0);
     duk_put_prop_string(ctx, -2, "GetName");
 
-    duk_push_c_function(ctx, buf_GetLength, 0);
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto bufCap = checkBufferCapability(c, 0);
+        duk_push_number(c, static_cast<duk_double_t>(bufCap->GetLength()));
+        return 1; }, 0);
     duk_put_prop_string(ctx, -2, "GetLength");
 
-    duk_push_c_function(ctx, buf_GetLineCount, 0);
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto bufCap = checkBufferCapability(c, 0);
+        duk_push_number(c, static_cast<duk_double_t>(bufCap->GetLineCount()));
+        return 1; }, 0);
     duk_put_prop_string(ctx, -2, "GetLineCount");
 
-    duk_push_c_function(ctx, buf_GetLineText, 1);
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto bufCap = checkBufferCapability(c, 0);
+        long line = static_cast<long>(duk_get_number(c, 1));
+        duk_push_lstring(c, bufCap->GetLineText(line).c_str(), bufCap->GetLineText(line).size());
+        return 1; }, 0);
     duk_put_prop_string(ctx, -2, "GetLineText");
 
-    duk_push_c_function(ctx, buf_GetCursor, 0);
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto bufCap = checkBufferCapability(c, 0);
+        auto cursor = bufCap->GetCursor();
+        duk_push_object(c);
+        duk_push_number(c, static_cast<duk_double_t>(cursor.first));
+        duk_put_prop_string(c, -2, "line");
+        duk_push_number(c, static_cast<duk_double_t>(cursor.second));
+        duk_put_prop_string(c, -2, "column");
+        return 1; }, 0);
     duk_put_prop_string(ctx, -2, "GetCursor");
 
-    duk_push_c_function(ctx, buf_Insert, 3);
-    duk_put_prop_string(ctx, -2, "Insert");
-
-    duk_push_c_function(ctx, buf_ReplaceLine, 2);
-    duk_put_prop_string(ctx, -2, "ReplaceLine");
-
-    duk_push_c_function(ctx, buf_Save, 0);
-    duk_put_prop_string(ctx, -2, "Save");
-
-    duk_push_c_function(ctx, buf_IsModified, 0);
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto bufCap = checkBufferCapability(c, 0);
+        duk_push_boolean(c, bufCap->IsModified() ? 1 : 0);
+        return 1; }, 0);
     duk_put_prop_string(ctx, -2, "IsModified");
 
-    // Store prototype globally
-    duk_put_global_string(ctx, "ZepBuffer");
+    // Store prototype globally as "ZepBufferCap"
+    duk_put_global_string(ctx, "ZepBufferCap");
 }
 
-// Create a buffer userdata object
-duk_push_buffer_userdata(duk_context* ctx, ZepBuffer* buf)
+void registerEditorCapabilityPrototype(duk_context* ctx)
 {
-    // Create a simple pointer-wrapped object
-    duk_push_pointer(ctx, buf);
-    duk_push_string(ctx, "ZepBuffer");
-    duk_put_prop_string(ctx, -2, "\xff"
-                                 "__type");
-    return 1;
-}
+    duk_push_object(ctx); // ZepEditorCap prototype
 
-// Register Editor prototype
-void registerEditorPrototype(duk_context* ctx)
-{
-    duk_push_object(ctx); // Editor proto
-
-    duk_push_c_function(ctx, ed_GetActiveBuffer, 0);
-    duk_put_prop_string(ctx, -2, "GetActiveBuffer");
-
-    duk_push_c_function(ctx, ed_GetBuffers, 0);
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto edCap = checkEditorCapability(c, 0);
+        auto buffers = edCap->GetBuffers();
+        duk_push_array(c);
+        for (size_t i = 0; i < buffers.size(); ++i)
+        {
+            // Allocate BufferCapability userdata
+            auto* buf_ud = static_cast<std::shared_ptr<BufferCapability>*>(duk_push_pointer(c, nullptr));
+            new(buf_ud) std::shared_ptr<BufferCapability>(buffers[i]);
+            // Set prototype to ZepBufferCap
+            duk_get_global_string(c, "ZepBufferCap");
+            duk_set_prototype(c, -2);
+            duk_put_prop_index(c, -3, i);
+        }
+        return 1; }, 0);
     duk_put_prop_string(ctx, -2, "GetBuffers");
 
-    duk_put_global_string(ctx, "ZepEditor");
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto edCap = checkEditorCapability(c, 0);
+        auto bufCap = edCap->GetActiveBuffer();
+        if (bufCap)
+        {
+            auto* buf_ud = static_cast<std::shared_ptr<BufferCapability>*>(duk_push_pointer(c, nullptr));
+            new(buf_ud) std::shared_ptr<BufferCapability>(std::move(bufCap));
+            duk_get_global_string(c, "ZepBufferCap");
+            duk_set_prototype(c, -2);
+        }
+        else
+        {
+            duk_push_null(c);
+        }
+        return 1; }, 0);
+    duk_put_prop_string(ctx, -2, "GetActiveBuffer");
+
+    duk_push_c_function(ctx, [](duk_context* c) -> duk_ret_t {
+        auto edCap = checkEditorCapability(c, 0);
+        duk_push_lstring(c, edCap->GetEditorVersion().c_str(), edCap->GetEditorVersion().size());
+        return 1; }, 0);
+    duk_put_prop_string(ctx, -2, "GetVersion");
+
+    duk_put_global_string(ctx, "ZepEditorCap");
 }
 
 } // anonymous namespace
 
-// DuktapeReplProvider implementation
+// ============================================================
+// DuktapeReplProvider - Security-Sandboxed Implementation
+// ============================================================
 
 DuktapeReplProvider::DuktapeReplProvider()
     : m_pEditor(nullptr)
     , ctx(nullptr)
     , m_printOutput(std::make_unique<std::string>())
+    , m_edCap()
 {
 }
 
@@ -336,16 +363,20 @@ DuktapeReplProvider::~DuktapeReplProvider()
 void DuktapeReplProvider::Initialize(ZepEditor* pEditor)
 {
     m_pEditor = pEditor;
+
+    // Create capability-based API (sandbox)
+    m_edCap = CreateEditorCapability(pEditor);
+
     ctx = duk_create_heap_default();
     if (!ctx)
         return;
 
-    // Setup global print that captures output
+    // === SECURITY: Sandboxed print ===
     duk_push_pointer(ctx, m_printOutput.get());
     duk_push_c_function(ctx, duk_print, 1);
     duk_put_global_string(ctx, "print");
 
-    // Remove dangerous globals
+    // === SECURITY: Remove dangerous globals ===
     duk_push_undefined(ctx);
     duk_put_global_string(ctx, "eval");
     duk_push_undefined(ctx);
@@ -358,17 +389,22 @@ void DuktapeReplProvider::Initialize(ZepEditor* pEditor)
     duk_put_global_string(ctx, "process");
     duk_push_undefined(ctx);
     duk_put_global_string(ctx, "console");
+    duk_push_undefined(ctx);
+    duk_put_global_string(ctx, "import");
+    duk_push_undefined(ctx);
+    duk_put_global_string(ctx, "Module");
 
-    // Register prototypes
-    // Note: simplified - in practice need to create constructors for Buffer/Editor objects
-    // For now, use raw pointers wrapped as objects with type tags
+    // === Register Capability prototypes ===
+    registerBufferCapabilityPrototype(ctx);
+    registerEditorCapabilityPrototype(ctx);
 
-    // Create editor userdata
-    duk_push_global_object(ctx);
-    duk_push_pointer(ctx, m_pEditor);
-    duk_put_prop_string(ctx, -2, "\xff"
-                                 "editor_ptr");
-    duk_pop(ctx);
+    // === EXPOSE CONTROL INTERFACE ===
+    // Create shared_ptr<EditorCapability> userdata and expose as global 'editor'
+    auto* ed_ud = static_cast<std::shared_ptr<EditorCapability>*>(duk_push_pointer(ctx, nullptr));
+    new (ed_ud) std::shared_ptr<EditorCapability>(m_edCap);
+    duk_get_global_string(ctx, "ZepEditorCap");
+    duk_set_prototype(ctx, -2);
+    duk_put_global_string(ctx, "editor");
 }
 
 std::string DuktapeReplProvider::ReplParse(const std::string& text)
@@ -389,7 +425,6 @@ std::string DuktapeReplProvider::ReplParse(const std::string& text)
         return msg;
     }
 
-    // Collect results (top of stack)
     std::ostringstream oss;
     int n = duk_get_top(ctx);
     for (int i = 0; i < n; i++)
@@ -413,7 +448,7 @@ std::string DuktapeReplProvider::ReplParse(const std::string& text)
             oss << "[object]";
         }
     }
-    duk_pop(ctx); // clean stack
+    duk_pop(ctx);
 
     std::string result = oss.str();
     if (!m_printOutput->empty())

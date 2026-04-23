@@ -137,7 +137,7 @@ ZepEditor::ZepEditor(ZepDisplay* pDisplay, const fs::path& configRoot, uint32_t 
 
 ZepEditor::~ZepEditor()
 {
-    std::for_each(m_tabWindows.begin(), m_tabWindows.end(), [](ZepTabWindow* w) { delete w; });
+    // Unique_ptr members auto-delete; just clear containers
     m_tabWindows.clear();
     delete m_pDisplay;
     delete m_pFileSystem;
@@ -447,7 +447,7 @@ ZepTabWindow* ZepEditor::EnsureTab()
     {
         return m_pActiveTabWindow;
     }
-    return m_tabWindows[0];
+    return m_tabWindows[0].get();
 }
 
 // Nothing here currently; we used to create a default tab, now we don't.  It is up to the client
@@ -517,7 +517,7 @@ void ZepEditor::UpdateWindowState()
     {
         if (!m_tabWindows.empty())
         {
-            SetCurrentTabWindow(m_tabWindows.back());
+            SetCurrentTabWindow(m_tabWindows.back().get());
         }
     }
 
@@ -526,7 +526,7 @@ void ZepEditor::UpdateWindowState()
     {
         if (!m_pActiveTabWindow->GetWindows().empty())
         {
-            m_pActiveTabWindow->SetActiveWindow(m_pActiveTabWindow->GetWindows().back());
+            m_pActiveTabWindow->SetActiveWindow(m_pActiveTabWindow->GetWindows().back().get());
             m_bRegionsChanged = true;
         }
     }
@@ -591,7 +591,7 @@ void ZepEditor::NextTabWindow()
     {
         itr = m_tabWindows.end() - 1;
     }
-    SetCurrentTabWindow(*itr);
+    SetCurrentTabWindow(itr->get());
 }
 
 void ZepEditor::PreviousTabWindow()
@@ -607,7 +607,7 @@ void ZepEditor::PreviousTabWindow()
         itr--;
     }
 
-    SetCurrentTabWindow(*itr);
+    SetCurrentTabWindow(itr->get());
 }
 
 void ZepEditor::SetCurrentWindow(ZepWindow* pWindow)
@@ -676,14 +676,15 @@ void ZepEditor::UpdateTabs()
 
 ZepTabWindow* ZepEditor::AddTabWindow()
 {
-    auto pTabWindow = new ZepTabWindow(*this);
-    m_tabWindows.push_back(pTabWindow);
-    m_pActiveTabWindow = pTabWindow;
+    auto pTabWindow = std::make_unique<ZepTabWindow>(*this);
+    ZepTabWindow* rawPtr = pTabWindow.get();
+    m_tabWindows.push_back(std::move(pTabWindow));
+    m_pActiveTabWindow = rawPtr;
 
     auto pEmpty = GetEmptyBuffer("[Default]", FileFlags::DefaultBuffer);
-    pTabWindow->AddWindow(pEmpty, nullptr, RegionLayoutType::HBox);
+    rawPtr->AddWindow(pEmpty, nullptr, RegionLayoutType::HBox);
 
-    return pTabWindow;
+    return rawPtr;
 }
 
 void ZepEditor::RequestQuit()
@@ -697,14 +698,15 @@ void ZepEditor::RemoveTabWindow(ZepTabWindow* pTabWindow)
     if (!pTabWindow)
         return;
 
-    auto itrFound = std::find(m_tabWindows.begin(), m_tabWindows.end(), pTabWindow);
+    auto itrFound = std::find_if(m_tabWindows.begin(), m_tabWindows.end(),
+        [pTabWindow](const std::unique_ptr<ZepTabWindow>& up) { return up.get() == pTabWindow; });
     if (itrFound == m_tabWindows.end())
     {
         assert(!"Not found?");
         return;
     }
 
-    delete pTabWindow;
+    // unique_ptr will automatically delete when erased
     m_tabWindows.erase(itrFound);
 
     if (m_tabWindows.empty())
@@ -720,7 +722,7 @@ void ZepEditor::RemoveTabWindow(ZepTabWindow* pTabWindow)
         if (m_pActiveTabWindow == pTabWindow)
         {
             assert(!m_tabWindows.empty());
-            m_pActiveTabWindow = m_tabWindows[m_tabWindows.size() - 1];
+            m_pActiveTabWindow = m_tabWindows.back().get();
 
             // Force a reset of active to initialize the mode
             m_pActiveTabWindow->SetActiveWindow(m_pActiveTabWindow->GetActiveWindow());

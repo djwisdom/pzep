@@ -21,7 +21,8 @@ ZepTabWindow::ZepTabWindow(ZepEditor& editor)
 
 ZepTabWindow::~ZepTabWindow()
 {
-    std::for_each(m_windows.begin(), m_windows.end(), [](ZepWindow* w) { delete w; });
+    // Unique_ptr members auto-delete; just clear containers
+    m_windows.clear();
     m_spRootRegion.reset();
     m_windowRegions.clear();
 }
@@ -142,20 +143,21 @@ ZepWindow* ZepTabWindow::AddWindow(ZepBuffer* pBuffer, ZepWindow* pParent, Regio
         if (buffer.HasFileFlags(FileFlags::DefaultBuffer) && !buffer.HasFileFlags(FileFlags::Dirty))
         {
             m_windows[0]->SetBuffer(pBuffer);
-            return m_windows[0];
+            return m_windows[0].get();
         }
     }
 
-    // Make a new window
-    auto pWin = new ZepWindow(*this, pBuffer);
-    m_windows.push_back(pWin);
+    // Make a new window with unique_ptr
+    auto pWin = std::make_unique<ZepWindow>(*this, pBuffer);
+    ZepWindow* rawWin = pWin.get();
+    m_windows.push_back(std::move(pWin));
 
     // This new window is going to introduce a new region
     auto r = std::make_shared<Region>();
     r->flags = RegionFlags::Expanding;
     r->debugName = pBuffer->GetName();
 
-    SetActiveWindow(pWin);
+    SetActiveWindow(rawWin);
 
     // No parent, inserting our window on top of whatever is already in the window
     if (pParent == nullptr)
@@ -183,7 +185,7 @@ ZepWindow* ZepTabWindow::AddWindow(ZepBuffer* pBuffer, ZepWindow* pParent, Regio
 
         // New region has root as the parent.
         r->pParent = m_spRootRegion.get();
-        m_windowRegions[pWin] = r;
+        m_windowRegions[rawWin] = r;
     }
     else
     {
@@ -210,14 +212,14 @@ ZepWindow* ZepTabWindow::AddWindow(ZepBuffer* pBuffer, ZepWindow* pParent, Regio
             });
 
             // Insertion point should be _after_ the location we want
-            if (itrFound != pParentRegion->children.end())
+            if (itrFound != p_parentRegion->children.end())
             {
                 itrFound++;
             }
             pParentRegion->children.insert(itrFound, r);
 
             r->pParent = pParentRegion;
-            m_windowRegions[pWin] = r;
+            m_windowRegions[rawWin] = r;
         }
         else
         {
@@ -239,15 +241,13 @@ ZepWindow* ZepTabWindow::AddWindow(ZepBuffer* pBuffer, ZepWindow* pParent, Regio
             // Put our new window on the end
             pSplitRegion->children.push_back(r);
             r->pParent = pSplitRegion.get();
-            m_windowRegions[pWin] = r;
+            m_windowRegions[rawWin] = r;
         }
     }
 
-    SetActiveWindow(pWin);
-
     SetDisplayRegion(m_lastRegionRect, true);
 
-    return pWin;
+    return rawWin;
 }
 
 void ZepTabWindow::CloseActiveWindow()
@@ -300,7 +300,8 @@ void ZepTabWindow::RemoveWindow(ZepWindow* pWindow)
     }
 
     // Find the window
-    auto itrFound = std::find(m_windows.begin(), m_windows.end(), pWindow);
+    auto itrFound = std::find_if(m_windows.begin(), m_windows.end(),
+        [pWindow](const std::unique_ptr<ZepWindow>& up) { return up.get() == pWindow; });
     if (itrFound == m_windows.end())
     {
         assert(!"Not found?");
@@ -357,8 +358,7 @@ void ZepTabWindow::RemoveWindow(ZepWindow* pWindow)
 
     fnRemoveEmptyParent(pParentRegion);
 
-    // Now delete the window, erase it from the region info
-    delete pWindow;
+    // Now erase the window (unique_ptr will auto-delete)
     m_windows.erase(itrFound);
     m_windowRegions.erase(pWindow);
 
@@ -378,7 +378,7 @@ void ZepTabWindow::RemoveWindow(ZepWindow* pWindow)
         {
             // TODO: Active window ordering - remember the last active and switch to it when this one is closed
             assert(!m_windows.empty());
-            SetActiveWindow(m_windows[m_windows.size() - 1]);
+            SetActiveWindow(m_windows.back().get());
         }
         SetDisplayRegion(m_lastRegionRect, true);
         assert(!m_spRootRegion->children.empty());
@@ -419,7 +419,7 @@ void ZepTabWindow::SetDisplayRegion(const NRectf& region, bool force)
         for (auto& w : m_windows)
         {
             // TODO: Crash here rect is NULL?
-            w->SetDisplayRegion(m_windowRegions[w]->rect);
+            w->SetDisplayRegion(m_windowRegions[w.get()]->rect);
         }
     }
 }

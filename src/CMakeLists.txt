@@ -139,6 +139,24 @@ if(ENABLE_DUKTAPE_REPL)
     endif()
     target_compile_definitions(Zep INTERFACE ZEP_ENABLE_DUKTAPE_REPL)
 endif()
+if(ENABLE_QUICKJS_REPL)
+    # QuickJS: try to find via pkg-config or vcpkg
+    find_package(QuickJS QUIET)
+    if(QuickJS_FOUND)
+        target_link_libraries(Zep PRIVATE QuickJS::QuickJS)
+    else()
+        # Look for system quickjs.h and libquickjs
+        find_path(QUICKJS_INCLUDE_DIR NAMES quickjs.h)
+        find_library(QUICKJS_LIBRARY NAMES quickjs)
+        if(QUICKJS_INCLUDE_DIR AND QUICKJS_LIBRARY)
+            target_include_directories(Zep PRIVATE ${QUICKJS_INCLUDE_DIR})
+            target_link_libraries(Zep PRIVATE ${QUICKJS_LIBRARY})
+        else()
+            message(WARNING "QuickJS not found – either install via vcpkg (quickjs) or set QUICKJS_INCLUDE_DIR/QUICKJS_LIBRARY")
+        endif()
+    endif()
+    target_compile_definitions(Zep INTERFACE ZEP_ENABLE_QUICKJS_REPL)
+endif()
 
 # Set locations for components
 set_target_properties(Zep PROPERTIES

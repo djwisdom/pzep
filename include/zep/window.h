@@ -178,7 +178,7 @@ private:
     void UpdateMarkers();
     void UpdateAirline();
     void UpdateScrollers();
-    void UpdateLineSpans();
+    void UpdateLineSpans(long startBufferLine = 0, long endBufferLine = -1);
     void EnsureCursorVisible();
     void UpdateVisibleLineRange();
 
@@ -256,6 +256,11 @@ private:
     bool m_cursorMoved = true;
     uint32_t m_windowFlags = WindowFlags::ShowWhiteSpace | WindowFlags::ShowIndicators | WindowFlags::ShowLineNumbers | WindowFlags::WrapText;
 
+    // Incremental layout tracking (partial UpdateLineSpans)
+    long m_dirtyBufferLineStart = -1; // inclusive; -1 means no partial dirty
+    long m_dirtyBufferLineEnd = -1; // exclusive buffer line
+    bool m_forceFullRebuild = false; // set by config changes etc.
+
     // Cursor
     GlyphIterator m_bufferCursor; // Location in buffer coordinates.  Each window has a different buffer cursor
     long m_lastCursorColumn = 0; // The last cursor column (could be removed and recalculated)
@@ -290,7 +295,7 @@ private:
     std::vector<std::string> m_statusLines; // Status information, shown under the buffer
 
     // Setup of displayed lines
-    std::vector<SpanInfo*> m_windowLines; // Information about the currently displayed lines
+    std::vector<std::unique_ptr<SpanInfo>> m_windowLines; // Information about the currently displayed lines
     float m_textOffsetPx = 0.0f; // The Scroll position within the text
     float m_hScrollOffsetPx = 0.0f; // Horizontal scroll offset in pixels
     NVec2f m_textSizePx; // The calculated size of the buffer text, containing just the text

@@ -103,7 +103,7 @@ ZepWindow::ZepWindow(ZepTabWindow& window, ZepBuffer* buffer)
 
 ZepWindow::~ZepWindow()
 {
-    std::for_each(m_windowLines.begin(), m_windowLines.end(), [](SpanInfo* pInfo) { delete pInfo; });
+    m_windowLines.clear();
 }
 
 void ZepWindow::UpdateScrollers()
@@ -195,6 +195,29 @@ void ZepWindow::UpdateAirline()
     }
 }
 
+// Dirty tracking helper
+void ZepWindow::MarkBufferLinesDirty(long startLine, long endLine)
+{
+    // Ensure valid range
+    if (startLine < 0)
+        startLine = 0;
+    if (endLine < startLine)
+        return;
+
+    if (m_dirtyBufferLineStart < 0)
+    {
+        // First dirty region
+        m_dirtyBufferLineStart = startLine;
+        m_dirtyBufferLineEnd = endLine;
+    }
+    else
+    {
+        // Coalesce with existing
+        m_dirtyBufferLineStart = std::min(m_dirtyBufferLineStart, startLine);
+        m_dirtyBufferLineEnd = std::max(m_dirtyBufferLineEnd, endLine);
+    }
+}
+
 void ZepWindow::Notify(std::shared_ptr<ZepMessage> payload)
 {
     if (payload->messageId == Msg::Buffer)
@@ -212,6 +235,13 @@ void ZepWindow::Notify(std::shared_ptr<ZepMessage> payload)
         {
             // Make sure the cursor is on its 'display' part of the flash cycle after an edit.
             GetEditor().ResetCursorTimer();
+
+            // === Incremental Layout: Mark dirty buffer lines ===
+            long startLine = m_pBuffer->GetBufferLine(pMsg->startLocation);
+            // endLocation is inclusive? For Insert it's end of inserted text; for Delete it's original end before delete; for Replace it's end of replaced range.
+            // To be safe, mark from startLine to end of buffer because line numbers may have shifted.
+            long bufferLineCount = m_pBuffer->GetLineCount();
+            MarkBufferLinesDirty(startLine, bufferLineCount);
         }
 
         // Remove tooltips that might be present
@@ -524,7 +554,7 @@ NVec2f ZepWindow::ArrangeLineMarkers(tRangeMarkers& markers)
 // - Generate blocks of text, based on syntax highlighting, instead of single characters.
 // - Have a no-wrap text mode and save a lot of the wrapping work.
 // - Do some threading
-void ZepWindow::UpdateLineSpans()
+void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
 {
     TIME_SCOPE(UpdateLineSpans);
 
@@ -532,59 +562,95 @@ void ZepWindow::UpdateLineSpans()
 
     const auto& textBuffer = m_pBuffer->GetWorkingBuffer();
 
+    long totalLines = m_pBuffer->GetLineCount();
+    if (endBufferLine < 0 || endBufferLine > totalLines)
+        endBufferLine = totalLines;
+
+    bool fullRebuild = false;
+    if ((startBufferLine == 0 && endBufferLine >= totalLines) || m_windowLines.empty())
+        fullRebuild = true;
+
     long bufferLine = 0;
     long spanLine = 0;
     float bufferPosYPx = 0.0f;
-    float xOffset = m_xPad;
-
-    bool isMarkdown = m_pBuffer->GetFileExtension() == ".md";
-
-    // Nuke the existing spans
-    // In future we can in-place modify for speed
-    std::for_each(m_windowLines.begin(), m_windowLines.end(), [](SpanInfo* pInfo) { delete pInfo; });
-    m_windowLines.clear();
 
     auto widgetMarkers = m_pBuffer->GetRangeMarkers(RangeMarkerType::Widget);
     auto itrWidgetMarkers = widgetMarkers.begin();
 
-    // Process every buffer line
-    for (;;)
+    if (fullRebuild)
     {
-        // We haven't processed this line yet, so we can't display anything
-        // else
-        if (m_pBuffer->GetLineCount() <= bufferLine)
-            break;
+        m_windowLines.clear();
+        bufferLine = 0;
+        spanLine = 0;
+        bufferPosYPx = 0.0f;
+    }
+    else
+    {
+        // Partial: find first span whose bufferLineNumber >= startBufferLine
+        auto it = std::lower_bound(m_windowLines.begin(), m_windowLines.end(), startBufferLine,
+            [](const std::unique_ptr<SpanInfo>& span, long line) {
+                return span->bufferLineNumber < line;
+            });
 
+        if (it != m_windowLines.begin())
+        {
+            auto prevIt = it;
+            --prevIt;
+            SpanInfo* prev = prevIt->get();
+            bufferPosYPx = prev->yOffsetPx + prev->FullLineHeightPx();
+            spanLine = prev->spanLineIndex + 1;
+            // Erase old spans from this point forward
+            m_windowLines.erase(it, m_windowLines.end());
+        }
+        else
+        {
+            // No valid previous span; treat as full rebuild
+            m_windowLines.clear();
+            fullRebuild = true;
+            bufferPosYPx = 0.0f;
+            spanLine = 0;
+        }
+
+        bufferLine = startBufferLine;
+
+        // Position widget marker iterator at the start of the dirty region
+        ByteRange startRange;
+        if (m_pBuffer->GetLineOffsets(startBufferLine, startRange))
+        {
+            itrWidgetMarkers = widgetMarkers.lower_bound(startRange.first);
+        }
+    }
+
+    bool isMarkdown = m_pBuffer->GetFileExtension() == ".md";
+
+    // Main loop: generate spans for each affected buffer line
+    while (bufferLine < totalLines && bufferLine < endBufferLine)
+    {
         ByteRange lineByteRange;
         if (!m_pBuffer->GetLineOffsets(bufferLine, lineByteRange))
             break;
 
-        // Padding at the top of the line
+        float xOffset = m_xPad;
+
         NVec2f topPadding = NVec2f(DPI_Y((float)GetEditor().GetConfig().lineMargins.x), DPI_Y((float)GetEditor().GetConfig().lineMargins.y));
 
         auto markersOnLine = m_pBuffer->GetRangeMarkersOnLine(RangeMarkerType::All, bufferLine);
         auto lineWidgetHeight = ArrangeLineMarkers(markersOnLine);
 
-        // Move the line down by the height of the widget
         bufferPosYPx += lineWidgetHeight.x;
 
-        // TODO: Find a clean way to do this extra work during layout for extensions that need it
         ZepTextType type = ZepTextType::Text;
         if (isMarkdown)
         {
             uint32_t headerCount = 0;
-            // Markdown experiment
             for (auto ch = lineByteRange.first; ch < lineByteRange.second; ch += utf8_codepoint_length(textBuffer[ch]))
             {
                 if (textBuffer[ch] != '#')
                     break;
                 headerCount++;
             }
-
             switch (headerCount)
             {
-            case 0:
-                break;
             case 1:
                 type = ZepTextType::Heading1;
                 break;
@@ -594,18 +660,17 @@ void ZepWindow::UpdateLineSpans()
             case 3:
                 type = ZepTextType::Heading3;
                 break;
+            default:
+                break;
             }
-            // !Markdown experiment
         }
 
         auto& font = GetEditor().GetDisplay().GetFont(type);
         int textHeight = font.GetPixelHeight();
-
-        // text line height is top/bottom pad
         float fullLineHeight = textHeight + topPadding.x + topPadding.y;
 
-        // Start a new line
-        SpanInfo* lineInfo = new SpanInfo();
+        auto lineInfoPtr = std::make_unique<SpanInfo>();
+        SpanInfo* lineInfo = lineInfoPtr.get();
         lineInfo->pFont = &font;
         lineInfo->lineWidgetHeights = lineWidgetHeight;
         lineInfo->bufferLineNumber = bufferLine;
@@ -620,57 +685,45 @@ void ZepWindow::UpdateLineSpans()
 
         auto inlineMargins = DPI_VEC2(GetEditor().GetConfig().inlineWidgetMargins);
 
-        // These offsets are 0 -> n + 1, i.e. the last offset the buffer returns is 1 beyond the current
-        // Note: Must not use pointers into the character buffer!
         for (auto ch = lineByteRange.first; ch < lineByteRange.second; ch += utf8_codepoint_length(textBuffer[ch]))
         {
             const uint8_t* pCh = &textBuffer[ch];
             auto textSize = font.GetCharSize(pCh);
 
-            // Skip to current marker
             while (itrWidgetMarkers != widgetMarkers.end() && itrWidgetMarkers->first < ch)
             {
-                itrWidgetMarkers++;
+                ++itrWidgetMarkers;
             }
 
-            if (itrWidgetMarkers != widgetMarkers.end())
+            if (itrWidgetMarkers != widgetMarkers.end() && itrWidgetMarkers->first == ch)
             {
-                if (itrWidgetMarkers->first == ch)
+                for (auto& pWidget : itrWidgetMarkers->second)
                 {
-                    for (auto& pWidget : itrWidgetMarkers->second)
-                    {
-                        NVec2f inlineSize = pWidget->GetInlineSize();
-                        inlineSize.x = inlineMargins.x * 2 + textHeight;
-                        xOffset += inlineSize.x;
-                        pWidget->SetInlineSize(inlineSize);
-                    }
-                    lineInfo->lineTextSizePx.x = xOffset;
+                    NVec2f inlineSize = pWidget->GetInlineSize();
+                    inlineSize.x = inlineMargins.x * 2 + textHeight;
+                    xOffset += inlineSize.x;
+                    pWidget->SetInlineSize(inlineSize);
                 }
+                lineInfo->lineTextSizePx.x = xOffset;
             }
 
-            // Wrap if we have displayed at least one char, and we are wrapping.
-            // Don't wrap just for the CR
             if (ZTestFlags(GetWindowFlags(), WindowFlags::WrapText) && ch != lineByteRange.first && *pCh != '\n' && *pCh != 0)
             {
-                // At least a single char has wrapped; close the old line, start a new one
                 if (((xOffset + textSize.x) + textSize.x) >= (m_textRegion->rect.Width()))
                 {
-                    // Remember the offset beyond the end of the line
+                    // Wrap
                     lineInfo->lineByteRange.second = ch;
                     lineInfo->lineTextSizePx.x = xOffset;
-                    m_windowLines.push_back(lineInfo);
+                    m_windowLines.push_back(std::move(lineInfoPtr));
 
-                    // Next line
-                    lineInfo = new SpanInfo();
+                    lineInfoPtr = std::make_unique<SpanInfo>();
+                    lineInfo = lineInfoPtr.get();
                     spanLine++;
                     bufferPosYPx += fullLineHeight + lineWidgetHeight.y;
 
-                    // Reset the line margin and height, because when we split a line we don't include a
-                    // custom widget space above it.  That goes just above the first part of the line
                     topPadding.x = (float)GetEditor().GetConfig().lineMargins.x;
                     fullLineHeight = textHeight + topPadding.x + topPadding.y;
 
-                    // Now jump to the next 'screen line' for the rest of this 'buffer line'
                     lineInfo->lineByteRange = ByteRange(ch, ch + utf8_codepoint_length(textBuffer[ch]));
                     lineInfo->spanLineIndex = spanLine;
                     lineInfo->bufferLineNumber = bufferLine;
@@ -708,43 +761,36 @@ void ZepWindow::UpdateLineSpans()
             lineInfo->lineTextSizePx.x = std::max(lineInfo->lineTextSizePx.x, xOffset);
         }
 
-        // Complete the line
-        m_windowLines.push_back(lineInfo);
+        m_windowLines.push_back(std::move(lineInfoPtr));
 
-        // Next time round - down a buffer line, down a span line
         bufferLine++;
         spanLine++;
-        xOffset = m_xPad;
         bufferPosYPx += fullLineHeight + lineWidgetHeight.y;
     }
 
-    // Sanity
     if (m_windowLines.empty())
     {
-        SpanInfo* lineInfo = new SpanInfo();
+        auto lineInfoPtr = std::make_unique<SpanInfo>();
+        SpanInfo* lineInfo = lineInfoPtr.get();
         lineInfo->lineByteRange.first = 0;
         lineInfo->lineByteRange.second = 0;
         lineInfo->padding = NVec2f(0.0f);
         lineInfo->lineTextSizePx = NVec2f(0.0f);
         lineInfo->bufferLineNumber = 0;
-        m_windowLines.push_back(lineInfo);
+        m_windowLines.push_back(std::move(lineInfoPtr));
     }
 
-    // Now build the codepoint offsets
+    // Build code point offsets
     for (auto& line : m_windowLines)
     {
         auto ch = line->lineByteRange.first;
 
-        // TODO: Optimize
         line->lineCodePoints.clear();
         uint32_t points = 0;
         while (ch < line->lineByteRange.second)
         {
             LineCharInfo info;
 
-            // Important note: We can't navigate the text buffer by pointers!
-            // The gap buffer will get in the way; so need to be careful to use [] or an iterator
-            // GetCharSize is cached for speed on debug builds.
             info.iterator = GlyphIterator(m_pBuffer, ch);
             info.size = line->pFont->GetCharSize(&textBuffer[ch]);
             line->lineCodePoints.push_back(info);
@@ -1765,18 +1811,34 @@ void ZepWindow::UpdateLayout(bool force)
         if (ZTestFlags(GetWindowFlags(), WindowFlags::WrapText))
         {
             m_editRegion->flags = RegionFlags::Expanding;
-            m_editRegion->fixed_size = NVec2f(0.0f);
+            m_editRegion->fixed_size = NVec2f(0.0f, 0.0f);
 
             // First layout
             LayoutRegion(*m_bufferRegion);
 
             // Then update the text alignment
-            UpdateLineSpans();
+            if (m_dirtyBufferLineStart >= 0 && !m_forceFullRebuild)
+            {
+                UpdateLineSpans(m_dirtyBufferLineStart, m_dirtyBufferLineEnd);
+            }
+            else
+            {
+                m_windowLines.clear();
+                UpdateLineSpans(0, -1);
+            }
         }
         else
         {
             // First update the text, since it is always the same size without wrapping
-            UpdateLineSpans();
+            if (m_dirtyBufferLineStart >= 0 && !m_forceFullRebuild)
+            {
+                UpdateLineSpans(m_dirtyBufferLineStart, m_dirtyBufferLineEnd);
+            }
+            else
+            {
+                m_windowLines.clear();
+                UpdateLineSpans(0, -1);
+            }
 
             // Fix the edit region size at the text size
             m_editRegion->flags = RegionFlags::AlignCenter;
@@ -1795,6 +1857,11 @@ void ZepWindow::UpdateLayout(bool force)
             // Finally, we have to update the line visibility again because the layout has changed!
             UpdateVisibleLineRange();
         }
+
+        // Clear incremental dirty tracking after successful layout
+        m_dirtyBufferLineStart = -1;
+        m_dirtyBufferLineEnd = -1;
+        m_forceFullRebuild = false;
 
         m_layoutDirty = false;
     }
@@ -1918,8 +1985,8 @@ void ZepWindow::DisplayMarkerHints()
         return;
     }
 
-    const auto lastLineInfo = m_windowLines[m_visibleLineIndices.y];
-    const auto firstLineInfo = m_windowLines[m_visibleLineIndices.x];
+    const auto& lastLineInfo = m_windowLines[m_visibleLineIndices.y];
+    const auto& firstLineInfo = m_windowLines[m_visibleLineIndices.x];
     const auto firstIndex = firstLineInfo->lineByteRange.first;
     const auto lastIndex = lastLineInfo->lineByteRange.second;
     const auto lineHeight = m_windowLines[m_visibleLineIndices.x]->FullLineHeightPx();
@@ -2317,7 +2384,7 @@ NVec2i ZepWindow::BufferToDisplay(const GlyphIterator& loc)
     if (!m_windowLines.empty())
     {
         auto itr = std::lower_bound(m_windowLines.begin(), m_windowLines.end(), target,
-            [](const SpanInfo* line, long value) {
+            [](const std::unique_ptr<SpanInfo>& line, long value) {
                 return line->lineByteRange.second <= value;
             });
 

@@ -375,13 +375,13 @@ public:
     void SetFlags(uint32_t flags);
 
     // Tab windows
-    using tTabWindows = std::vector<ZepTabWindow*>;
+    using tTabWindows = std::vector<std::unique_ptr<ZepTabWindow>>;
     void NextTabWindow();
     void PreviousTabWindow();
     void SetCurrentTabWindow(ZepTabWindow* pTabWindow);
     void SetCurrentWindow(ZepWindow* pWindow);
     ZepTabWindow* GetActiveTabWindow() const;
-    ZepTabWindow* AddTabWindow();
+    std::unique_ptr<ZepTabWindow> AddTabWindow();
     void RemoveTabWindow(ZepTabWindow* pTabWindow);
     const tTabWindows& GetTabWindows() const;
     ZepWindow* GetActiveWindow() const;
