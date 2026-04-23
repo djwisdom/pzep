@@ -1237,6 +1237,7 @@ void ZepWindow::DisplayLineNumbers()
 
     if (m_numberRegion->rect.Width() > 0)
     {
+        long totalLines = m_pBuffer->GetLineCount();
         for (long windowLine = m_visibleLineIndices.x; windowLine < m_visibleLineIndices.y; windowLine++)
         {
             auto& lineInfo = *m_windowLines[windowLine];
@@ -1249,14 +1250,25 @@ void ZepWindow::DisplayLineNumbers()
 
             auto mode = m_pBuffer->GetMode();
 
-            // In Vim mode show relative lines, unless in Ex mode (with hidden cursor)
-            if (mode->UsesRelativeLines() && mode->GetCursorType() != CursorType::None)
+            // Check if this line is beyond EOF (empty virtual line)
+            bool beyondEOF = (lineInfo.bufferLineNumber >= totalLines);
+
+            if (beyondEOF)
             {
-                strNum = std::to_string(std::abs(lineInfo.bufferLineNumber - cursorBufferLine));
+                // Vim-style tilde for lines beyond end of file
+                strNum = "~";
             }
             else
             {
-                strNum = std::to_string(lineInfo.bufferLineNumber + 1);
+                // In Vim mode show relative lines, unless in Ex mode (with hidden cursor)
+                if (mode->UsesRelativeLines() && mode->GetCursorType() != CursorType::None)
+                {
+                    strNum = std::to_string(std::abs(lineInfo.bufferLineNumber - cursorBufferLine));
+                }
+                else
+                {
+                    strNum = std::to_string(lineInfo.bufferLineNumber + 1);
+                }
             }
 
             auto& numFont = display.GetFont(ZepTextType::UI);
@@ -1269,16 +1281,13 @@ void ZepWindow::DisplayLineNumbers()
                 digitCol = m_pBuffer->GetTheme().GetColor(ThemeColor::CursorNormal);
             }
 
-            if (m_numberRegion->rect.Width() > 0)
-            {
-                // Numbers
-                display.SetClipRect(m_numberRegion->rect);
-                display.DrawChars(numFont,
-                    NVec2f(m_numberRegion->rect.bottomRightPx.x - textSize.x,
-                        ToWindowY(lineCenter - numFont.GetPixelHeight() * .5f)),
-                    digitCol,
-                    (const uint8_t*)strNum.c_str(), (const uint8_t*)(strNum.c_str() + strNum.size()));
-            }
+            // Numbers
+            display.SetClipRect(m_numberRegion->rect);
+            display.DrawChars(numFont,
+                NVec2f(m_numberRegion->rect.bottomRightPx.x - textSize.x,
+                    ToWindowY(lineCenter - numFont.GetPixelHeight() * .5f)),
+                digitCol,
+                (const uint8_t*)strNum.c_str(), (const uint8_t*)(strNum.c_str() + strNum.size()));
 
             if (m_indicatorRegion->rect.Width() > 0)
             {
