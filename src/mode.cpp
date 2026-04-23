@@ -352,25 +352,24 @@ std::string ZepMode::ConvertInputToMapString(uint32_t key, uint32_t modifierKeys
     COMPARE_STR(F10, ExtKeys::F10)
     COMPARE_STR(F11, ExtKeys::F11)
     COMPARE_STR(F12, ExtKeys::F12)
-    // ExtKeys::Insert not defined; Insert handled separately via g_keyMap in main if needed
 
     if (!mapped.empty())
     {
+        // Special non-printable key; always use bracketed token (e.g., <Return>, <C-Return>)
         if (brackets)
             str += "<" + mapped + ">";
         else
-            str = mapped;
+            str = "<" + mapped + ">";
     }
     else
     {
-        // If we have modifiers, we represent the key as a single char within brackets
+        // Printable character
         if (!str.empty())
         {
-            str += '(' + (char)key + ')';
+            str += (char)key;
         }
         else
         {
-            // No modifiers; plain character
             str += (char)key;
         }
     }

@@ -1,6 +1,6 @@
 # pZep - Vim-like Code Editor
 
-A lightweight, embeddable code editor with full Vim keybindings.
+A lightweight, stand alone code editor with full Vim keybindings.
 
 ## Architecture
 
