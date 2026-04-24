@@ -2443,65 +2443,44 @@ NVec2i ZepWindow::BufferToDisplay(const GlyphIterator& loc)
 
     NVec2i ret(0, 0);
     auto target = loc.Index();
+    long totalLines = m_pBuffer->GetLineCount();
 
     if (!m_windowLines.empty())
     {
-        // Find the last line whose range end is <= target, by using lower_bound on 'second'
+        // Use lower_bound to find the first line where lineByteRange.second > target
         auto itr = std::lower_bound(m_windowLines.begin(), m_windowLines.end(), target,
             [](const std::unique_ptr<SpanInfo>& line, long value) {
                 return line->lineByteRange.second <= value;
             });
 
-        // If lower_bound returned begin(), everything starts after target (shouldn't happen for valid buffers)
-        if (itr == m_windowLines.begin())
+        // Adjust iterator to the containing line
+        if (itr == m_windowLines.end())
         {
-            // Handle edge case: no line contains target, return begin
-            itr = m_windowLines.begin();
-        }
-        else if (itr == m_windowLines.end())
-        {
-            // Target is after all lines; point to last line
+            // Target is after all lines; use the last line
             --itr;
         }
-        else
+        else if (itr != m_windowLines.begin())
         {
-            // itr points to first line with second > target. The containing line is the one before it.
+            // itr points to first line with second > target; containing line is the previous one
+            --itr;
+        }
+        // else itr == begin() and its second > target -> containing line is begin itself
+
+        // If the candidate line is a filler line (bufferLineNumber >= totalLines),
+        // it doesn't contain any real buffer content. Step back to the last real line.
+        while (itr != m_windowLines.begin() && (*itr)->bufferLineNumber >= totalLines)
+        {
             --itr;
         }
 
-        // Now 'itr' points to the candidate line whose range may contain target.
-        // For filler lines, lineByteRange is huge and doesn't contain target. Skip to next non-filler.
-        long totalLines = m_pBuffer->GetLineCount();
-        while (itr != m_windowLines.end() && (*itr)->bufferLineNumber >= totalLines)
-        {
-            ++itr;
-        }
-        if (itr == m_windowLines.end())
-        {
-            // All lines after current are filler; use last real line we can find
-            // Scan backwards for the last real line
-            auto last = m_windowLines.rbegin();
-            while (last != m_windowLines.rend() && (*last)->bufferLineNumber >= totalLines)
-            {
-                ++last;
-            }
-            if (last != m_windowLines.rend())
-            {
-                itr = last.base();
-                --itr;
-            }
-            else
-            {
-                // Only filler lines exist (empty buffer). Use last line.
-                itr = m_windowLines.end();
-                --itr;
-            }
-        }
+        // If still on a filler (all lines are filler), just keep itr as is (empty buffer case)
+        // At this point, itr points to a line we'll use for lookup.
 
         size_t line_number = std::distance(m_windowLines.begin(), itr);
         ret.y = long(line_number);
         ret.x = 0;
 
+        // Search for the exact glyph iterator within the line's code points
         for (auto& ch : (*itr)->lineCodePoints)
         {
             if (ch.iterator == loc)
@@ -2511,7 +2490,7 @@ NVec2i ZepWindow::BufferToDisplay(const GlyphIterator& loc)
             ret.x++;
         }
 
-        // If we didn't find exact match (possible on filler line with no code points), return line's start
+        // If iterator not found (possible for positions beyond buffer end), return line start
         return ret;
     }
 
