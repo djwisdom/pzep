@@ -2446,14 +2446,56 @@ NVec2i ZepWindow::BufferToDisplay(const GlyphIterator& loc)
 
     if (!m_windowLines.empty())
     {
+        // Find the last line whose range end is <= target, by using lower_bound on 'second'
         auto itr = std::lower_bound(m_windowLines.begin(), m_windowLines.end(), target,
             [](const std::unique_ptr<SpanInfo>& line, long value) {
                 return line->lineByteRange.second <= value;
             });
 
+        // If lower_bound returned begin(), everything starts after target (shouldn't happen for valid buffers)
+        if (itr == m_windowLines.begin())
+        {
+            // Handle edge case: no line contains target, return begin
+            itr = m_windowLines.begin();
+        }
+        else if (itr == m_windowLines.end())
+        {
+            // Target is after all lines; point to last line
+            --itr;
+        }
+        else
+        {
+            // itr points to first line with second > target. The containing line is the one before it.
+            --itr;
+        }
+
+        // Now 'itr' points to the candidate line whose range may contain target.
+        // For filler lines, lineByteRange is huge and doesn't contain target. Skip to next non-filler.
+        long totalLines = m_pBuffer->GetLineCount();
+        while (itr != m_windowLines.end() && (*itr)->bufferLineNumber >= totalLines)
+        {
+            ++itr;
+        }
         if (itr == m_windowLines.end())
         {
-            --itr;
+            // All lines after current are filler; use last real line we can find
+            // Scan backwards for the last real line
+            auto last = m_windowLines.rbegin();
+            while (last != m_windowLines.rend() && (*last)->bufferLineNumber >= totalLines)
+            {
+                ++last;
+            }
+            if (last != m_windowLines.rend())
+            {
+                itr = last.base();
+                --itr;
+            }
+            else
+            {
+                // Only filler lines exist (empty buffer). Use last line.
+                itr = m_windowLines.end();
+                --itr;
+            }
         }
 
         size_t line_number = std::distance(m_windowLines.begin(), itr);
@@ -2468,17 +2510,13 @@ NVec2i ZepWindow::BufferToDisplay(const GlyphIterator& loc)
             }
             ret.x++;
         }
+
+        // If we didn't find exact match (possible on filler line with no code points), return line's start
+        return ret;
     }
 
-    assert(!m_windowLines.empty());
-    if (m_windowLines.empty())
-    {
-        return NVec2i(0, 0);
-    }
-
-    ret.y = long(m_windowLines.size() - 1);
-    ret.x = long(m_windowLines[m_windowLines.size() - 1]->lineCodePoints.size() - 1);
-    return ret;
+    // No lines at all - shouldn't happen, but return safe default
+    return NVec2i(0, 0);
 }
 
 } // namespace Zep
