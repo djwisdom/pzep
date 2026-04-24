@@ -2416,46 +2416,78 @@ NVec2i ZepWindow::BufferToDisplay(const GlyphIterator& loc)
     UpdateLayout();
 
     NVec2i ret(0, 0);
-    auto target = loc.Index();
+    if (m_windowLines.empty())
+        return ret;
 
-    if (!m_windowLines.empty())
+    // Map cursor byte index to buffer line number using the buffer's lineEnds.
+    auto& lineEnds = m_pBuffer->GetLineEnds();
+    long bufLine = 0;
+    if (!lineEnds.empty())
     {
-        auto itr = std::lower_bound(m_windowLines.begin(), m_windowLines.end(), target,
-            [](const std::unique_ptr<SpanInfo>& line, long value) {
-                return line->lineByteRange.second <= value;
-            });
+        auto itEnd = std::lower_bound(lineEnds.begin(), lineEnds.end(), loc.Index());
+        if (itEnd == lineEnds.end())
+            bufLine = long(lineEnds.size() - 1);
+        else
+            bufLine = long(itEnd - lineEnds.begin());
+    }
 
-        if (itr == m_windowLines.end())
+    // Clamp to valid buffer lines (ignore filler lines beyond EOF).
+    long totalLines = m_pBuffer->GetLineCount();
+    if (totalLines > 0)
+        bufLine = std::max(0L, std::min(bufLine, totalLines - 1));
+    else
+        return ret; // empty buffer
+
+    // Find the window line that corresponds to this buffer line.
+    auto itWin = std::lower_bound(m_windowLines.begin(), m_windowLines.end(), bufLine,
+        [](const std::unique_ptr<SpanInfo>& line, long value) {
+            return line->bufferLineNumber < value;
+        });
+
+    const SpanInfo* pSpan = nullptr;
+    if (itWin != m_windowLines.end() && (*itWin)->bufferLineNumber == bufLine)
+    {
+        pSpan = itWin->get();
+    }
+    else
+    {
+        // Fallback: use the last real window line (bufferLineNumber < totalLines).
+        for (auto it = m_windowLines.rbegin(); it != m_windowLines.rend(); ++it)
         {
-            --itr;
+            if ((*it)->bufferLineNumber < totalLines)
+            {
+                pSpan = it->get();
+                break;
+            }
         }
+        if (!pSpan)
+            pSpan = m_windowLines.front().get();
+    }
 
-        size_t line_number = std::distance(m_windowLines.begin(), itr);
-        ret.y = long(line_number);
-        ret.x = 0;
+    // Compute y = index of pSpan in m_windowLines.
+    auto itFind = std::find_if(m_windowLines.begin(), m_windowLines.end(),
+        [pSpan](const std::unique_ptr<SpanInfo>& s) { return s.get() == pSpan; });
+    if (itFind != m_windowLines.end())
+        ret.y = long(std::distance(m_windowLines.begin(), itFind));
 
-        for (auto& ch : (*itr)->lineCodePoints)
+    // Compute x by scanning code points of the span.
+    ret.x = 0;
+    if (pSpan)
+    {
+        for (auto& ch : pSpan->lineCodePoints)
         {
             if (ch.iterator == loc)
-            {
-                return ret;
-            }
+                break;
             ret.x++;
         }
     }
 
-    assert(!m_windowLines.empty());
-    if (m_windowLines.empty())
-    {
-        return NVec2i(0, 0);
-    }
+    // Clamp to non-negative (should be, but safety).
+    if (ret.x < 0) ret.x = 0;
+    if (ret.y < 0) ret.y = 0;
 
-    ret.y = long(m_windowLines.size() - 1);
-    ret.x = long(m_windowLines[m_windowLines.size() - 1]->lineCodePoints.size() - 1);
     return ret;
 }
-
-} // namespace Zep
 
 #if 0
     // Ensure we can see the cursor
@@ -2479,3 +2511,4 @@ NVec2i ZepWindow::BufferToDisplay(const GlyphIterator& loc)
     // Clamp
     m_nvisibleLineRange.x = std::max(0l, (long)m_nvisibleLineRange.x);
 #endif
+}
