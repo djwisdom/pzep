@@ -79,7 +79,8 @@ enum class BufferType
     Repl,
     DataGrid,
     Tree,
-    Terminal
+    Terminal,
+    Tutorial
 };
 
 // A really big cursor move; which will likely clamp

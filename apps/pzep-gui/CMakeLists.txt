@@ -12,10 +12,17 @@ if(WIN32)
     set(RAYLIB_LIB "C:/vcpkg/installed/x64-windows/lib")
 endif()
 
-add_executable(pzep-gui
-    main.cpp
-    ../../src/raylib/display_raylib.cpp
-)
+if(WIN32)
+    add_executable(pzep-gui WIN32
+        main.cpp
+        ../../src/raylib/display_raylib.cpp
+    )
+else()
+    add_executable(pzep-gui
+        main.cpp
+        ../../src/raylib/display_raylib.cpp
+    )
+endif()
 
 target_include_directories(pzep-gui PRIVATE
     ${CMAKE_SOURCE_DIR}/../../include
@@ -35,10 +42,16 @@ target_link_libraries(pzep-gui PRIVATE
 )
 
 if(WIN32)
+    # Build as Windows GUI app (no console window). Use main as entry point.
+    set_target_properties(pzep-gui PROPERTIES
+        WIN32_EXECUTABLE TRUE
+        LINK_FLAGS "/ENTRY:mainCRTStartup"
+    )
     target_compile_definitions(pzep-gui PRIVATE _CRT_SECURE_NO_WARNINGS)
     
     # Copy DLLs to output directory after build
     add_custom_command(TARGET pzep-gui POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:pzep-gui>/plugins
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${RAYLIB_LIB}/../bin/raylib.dll
             $<TARGET_FILE_DIR:pzep-gui>/

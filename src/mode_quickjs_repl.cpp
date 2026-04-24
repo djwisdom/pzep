@@ -1,3 +1,5 @@
+#include "zep/buffer.h"
+#include "zep/commands_repl.h"
 #include "zep/editor.h"
 #include "zep/filesystem.h"
 #include "zep/mcommon/logger.h"
@@ -92,6 +94,7 @@ void RegisterQuickJSEvalReplProvider(ZepEditor& editor)
     auto provider = std::make_unique<QuickJSReplProvider>();
     provider->Initialize(&editor);
     ZepReplExCommand::Register(editor, provider.get());
+    RegisterQuickJSReplCommand(editor, provider.get());
     editor.RegisterReplProvider(std::move(provider));
 }
 

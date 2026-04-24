@@ -21,6 +21,7 @@ ${ZEP_ROOT}/include/zep/mcommon/threadutils.h
 ${ZEP_ROOT}/include/zep/mode.h
 ${ZEP_ROOT}/include/zep/mode_search.h
 ${ZEP_ROOT}/include/zep/mode_standard.h
+${ZEP_ROOT}/include/zep/mode_tutorial.h
 ${ZEP_ROOT}/include/zep/mode_tree.h
 ${ZEP_ROOT}/include/zep/mode_vim.h
 ${ZEP_ROOT}/include/zep/mode_repl.h
@@ -35,8 +36,11 @@ ${ZEP_ROOT}/include/zep/syntax_tree.h
 ${ZEP_ROOT}/include/zep/syntax_markdown.h
 ${ZEP_ROOT}/include/zep/tab_window.h
 ${ZEP_ROOT}/include/zep/theme.h
+${ZEP_ROOT}/include/zep/repl_plugin.h
 ${ZEP_ROOT}/include/zep/window.h
 ${ZEP_ROOT}/include/zep/git.h
+${ZEP_ROOT}/include/zep/commands_repl.h
+${ZEP_ROOT}/include/zep/commands_tutor.h
 ${ZEP_ROOT}/include/zep/terminal.h
 ${ZEP_ROOT}/src/CMakeLists.txt
 ${ZEP_ROOT}/src/buffer.cpp
@@ -62,7 +66,8 @@ ${ZEP_ROOT}/src/mode_tree.cpp
     ${ZEP_ROOT}/src/mode_vim.cpp
     ${ZEP_ROOT}/src/mode_repl.cpp
     ${ZEP_ROOT}/src/mode_terminal.cpp
-${ZEP_ROOT}/src/regress.cpp
+    ${ZEP_ROOT}/src/mode_tutorial.cpp
+    ${ZEP_ROOT}/src/regress.cpp
 ${ZEP_ROOT}/src/scroller.cpp
 ${ZEP_ROOT}/src/splits.cpp
 ${ZEP_ROOT}/src/syntax.cpp
@@ -73,19 +78,25 @@ ${ZEP_ROOT}/src/syntax_markdown.cpp
 ${ZEP_ROOT}/src/tab_window.cpp
 ${ZEP_ROOT}/src/theme.cpp
 ${ZEP_ROOT}/src/window.cpp
+${ZEP_ROOT}/src/commands_tutor.cpp
+${ZEP_ROOT}/src/commands_repl.cpp
+${ZEP_ROOT}/src/repl_plugin_loader.cpp
 ${ZEP_ROOT}/src/commands_terminal.cpp
-    ${ZEP_ROOT}/src/terminal.cpp
+${ZEP_ROOT}/src/terminal.cpp
 )
 
 # Conditionally include REPL providers based on CMake options
-if(ENABLE_LUA_REPL)
-    list(APPEND ZEP_SOURCE ${ZEP_ROOT}/src/mode_lua_repl.cpp)
-endif()
-if(ENABLE_DUKTAPE_REPL)
-    list(APPEND ZEP_SOURCE ${ZEP_ROOT}/src/mode_duktape_repl.cpp)
-endif()
-if(ENABLE_QUICKJS_REPL)
-    list(APPEND ZEP_SOURCE ${ZEP_ROOT}/src/mode_quickjs_repl.cpp)
+# If BUILD_REPL_PLUGINS is ON, providers are built as separate plugins and excluded from static library
+if(NOT BUILD_REPL_PLUGINS)
+    if(ENABLE_LUA_REPL)
+        list(APPEND ZEP_SOURCE ${ZEP_ROOT}/src/mode_lua_repl.cpp)
+    endif()
+    if(ENABLE_DUKTAPE_REPL)
+        list(APPEND ZEP_SOURCE ${ZEP_ROOT}/src/mode_duktape_repl.cpp)
+    endif()
+    if(ENABLE_QUICKJS_REPL)
+        list(APPEND ZEP_SOURCE ${ZEP_ROOT}/src/mode_quickjs_repl.cpp)
+    endif()
 endif()
 
 set(SOURCES ${ZEP_SOURCE})
@@ -135,7 +146,11 @@ if(ENABLE_LUA_REPL)
     else()
         message(FATAL_ERROR "Lua not found. Install Lua or set LUA_INCLUDE_DIR and LUA_LIBRARIES.")
     endif()
-    target_compile_definitions(Zep PRIVATE ZEP_ENABLE_LUA_REPL)
+    if(NOT BUILD_REPL_PLUGINS)
+        if(NOT BUILD_REPL_PLUGINS)
+        target_compile_definitions(Zep PUBLIC ZEP_ENABLE_LUA_REPL)
+    endif()
+    endif()
 endif()
 
 if(ENABLE_DUKTAPE_REPL)
@@ -152,7 +167,7 @@ if(ENABLE_DUKTAPE_REPL)
         endif()
         target_link_libraries(Zep PRIVATE duktape_lib)
     endif()
-    target_compile_definitions(Zep PRIVATE ZEP_ENABLE_DUKTAPE_REPL)
+    target_compile_definitions(Zep PUBLIC ZEP_ENABLE_DUKTAPE_REPL)
 endif()
 
 if(ENABLE_QUICKJS_REPL)
@@ -175,7 +190,7 @@ if(ENABLE_QUICKJS_REPL)
         endif()
         target_link_libraries(Zep PRIVATE quickjs_lib)
     endif()
-    target_compile_definitions(Zep PRIVATE ZEP_ENABLE_QUICKJS_REPL)
+    target_compile_definitions(Zep PUBLIC ZEP_ENABLE_QUICKJS_REPL)
 endif()
 
 # Set locations for components
@@ -186,13 +201,14 @@ set_target_properties(Zep PROPERTIES
 )
 
 # Install the binary
-install(TARGETS Zep
-    EXPORT zep-targets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    INCLUDES DESTINATION ${LIBLEGACY_INCLUDE_DIRS}
-)
+# Skipping install to avoid dependency export issues during development
+# install(TARGETS Zep
+#     EXPORT zep-targets
+#     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+#     INCLUDES DESTINATION ${LIBLEGACY_INCLUDE_DIRS}
+# )
 
 # Workaround for if this file is included as part of another project 
 if (NOT DEFINED CMAKE_INSTALL_INCLUDEDIR)

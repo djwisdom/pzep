@@ -1,4 +1,5 @@
 #include "zep/buffer.h"
+#include "zep/commands_repl.h"
 #include "zep/editor.h"
 #include "zep/filesystem.h"
 #include "zep/mcommon/logger.h"
@@ -485,9 +486,7 @@ void RegisterLuaReplProvider(ZepEditor& editor)
     auto provider = std::make_unique<LuaReplProvider>();
     provider->Initialize(&editor);
     ZepReplExCommand::Register(editor, provider.get());
-    ZepReplEvaluateCommand::Register(editor, provider.get());
-    ZepReplEvaluateOuterCommand::Register(editor, provider.get());
-    ZepReplEvaluateInnerCommand::Register(editor, provider.get());
+    RegisterLuaReplCommand(editor, provider.get());
     editor.RegisterReplProvider(std::move(provider));
 }
 

@@ -1,7 +1,10 @@
+#include "zep/commands_repl.h"
+#include "zep/commands_tutor.h"
 #include "zep/editor.h"
 #include "zep/mode_repl.h"
 #include "zep/mode_vim.h"
 #include "zep/raylib/display_raylib.h"
+#include "zep/repl_plugin_loader.h"
 
 #include <cstdio>
 #include <string>
@@ -59,6 +62,9 @@ int main(int argc, char* argv[])
     ZepDisplay_Raylib display(1280, 800);
     ZepEditor editor(&display, std::filesystem::current_path());
     editor.SetGlobalMode(ZepMode_Vim::StaticName());
+
+    // Load REPL plugins from the plugins/ directory (if any)
+    InitializeReplPluginLoader(&editor, "plugins");
 
 #if defined(ZEP_ENABLE_LUA_REPL)
     RegisterLuaReplProvider(editor);
@@ -279,6 +285,12 @@ int main(int argc, char* argv[])
 
         editor.Display();
         display.EndFrame();
+
+        // If all tab windows have been closed (e.g., via :q), exit the main loop
+        if (editor.GetTabWindows().empty())
+        {
+            break;
+        }
     }
 
     return 0;

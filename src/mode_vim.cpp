@@ -4,6 +4,7 @@
 
 #include "zep/buffer.h"
 #include "zep/commands_terminal.h"
+#include "zep/commands_tutor.h"
 #include "zep/editor.h"
 #include "zep/git.h"
 #include "zep/keymap.h"
@@ -1101,8 +1102,106 @@ public:
 
         if (pBuffer)
         {
-            pTab->AddWindow(pBuffer, nullptr, RegionLayoutType::HBox);
+            pTab->AddWindow(pBuffer, nullptr, RegionLayoutType::VBox);
         }
+    }
+};
+
+class ZepExCommand_VSplit : public ZepExCommand
+{
+public:
+    ZepExCommand_VSplit(ZepEditor& editor)
+        : ZepExCommand(editor)
+    {
+    }
+
+    const char* ExCommandName() const override
+    {
+        return "vsplit";
+    }
+
+    void Run(const std::vector<std::string>& args) override
+    {
+        auto pEditor = &GetEditor();
+        auto pTab = pEditor->GetActiveTabWindow();
+        if (!pTab)
+            return;
+
+        ZepBuffer* pBuffer = nullptr;
+        if (args.size() >= 2)
+        {
+            fs::path filePath = args[1];
+            pBuffer = pEditor->GetFileBuffer(filePath);
+        }
+        else
+        {
+            pBuffer = pEditor->GetEmptyBuffer("Untitled");
+        }
+
+        if (pBuffer)
+        {
+            // Use active window as parent to split it vertically (side-by-side)
+            auto pParent = pTab->GetActiveWindow();
+            pTab->AddWindow(pBuffer, pParent, RegionLayoutType::HBox);
+        }
+    }
+};
+
+class ZepExCommand_TabNew : public ZepExCommand
+{
+public:
+    ZepExCommand_TabNew(ZepEditor& editor)
+        : ZepExCommand(editor)
+    {
+    }
+
+    const char* ExCommandName() const override
+    {
+        return "tabnew";
+    }
+
+    void Run(const std::vector<std::string>& args) override
+    {
+        ZEP_UNUSED(args);
+        auto pEditor = &GetEditor();
+        auto pNewTab = pEditor->AddTabWindow();
+        // Optionally open a file in the new tab if argument provided
+        if (args.size() >= 2)
+        {
+            fs::path filePath = args[1];
+            auto pBuffer = pEditor->GetFileBuffer(filePath);
+            if (pBuffer)
+            {
+                pNewTab->AddWindow(pBuffer, nullptr, RegionLayoutType::HBox);
+            }
+        }
+        pEditor->SetCurrentTabWindow(pNewTab);
+    }
+};
+
+class ZepExCommand_TabClose : public ZepExCommand
+{
+public:
+    ZepExCommand_TabClose(ZepEditor& editor)
+        : ZepExCommand(editor)
+    {
+    }
+
+    const char* ExCommandName() const override
+    {
+        return "tabclose";
+    }
+
+    void Run(const std::vector<std::string>& args) override
+    {
+        ZEP_UNUSED(args);
+        auto pTab = GetEditor().GetActiveTabWindow();
+        if (!pTab)
+            return;
+
+        // Close the active window in this tab; if it's the last window, the tab will be removed
+        // Actually to close the entire tab, we can directly remove it
+        GetEditor().RemoveTabWindow(pTab);
     }
 };
 
@@ -1393,7 +1492,11 @@ void RegisterVimExCommands(ZepEditor& editor)
     editor.RegisterExCommand(std::make_shared<ZepExCommand_BufferPrev>(editor));
     editor.RegisterExCommand(std::make_shared<ZepExCommand_BufferGoto>(editor));
     editor.RegisterExCommand(std::make_shared<ZepExCommand_Split>(editor));
+    editor.RegisterExCommand(std::make_shared<ZepExCommand_VSplit>(editor));
+    editor.RegisterExCommand(std::make_shared<ZepExCommand_TabNew>(editor));
+    editor.RegisterExCommand(std::make_shared<ZepExCommand_TabClose>(editor));
     editor.RegisterExCommand(std::make_shared<ZepExCommand_Set>(editor));
+    editor.RegisterExCommand(std::make_shared<ZepExCommand_Tutor>(editor));
 
     // Git commands
     if (auto spGit = editor.GetGit())

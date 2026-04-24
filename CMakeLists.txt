@@ -36,7 +36,7 @@ endif()
 
 project(Zep
     LANGUAGES CXX C
-    VERSION 0.5.23
+    VERSION 0.5.24
 )
 
 # Find Lua if enabled
@@ -91,11 +91,12 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/demos" AND BUILD_DEMOS)
 endif()
 
 # Make the CMake bits that ensure find_package does the right thing
-install(EXPORT zep-targets
-    FILE zep-targets.cmake
-    NAMESPACE Zep::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/zep
-)
+# Skipping install rules for now to avoid dependency export issues
+# install(EXPORT zep-targets
+#     FILE zep-targets.cmake
+#     NAMESPACE Zep::
+#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/zep
+# )
 
 include(CMakePackageConfigHelpers)
 
