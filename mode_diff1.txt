@@ -1,0 +1,1386 @@
+diff --git a/src/mode.cpp b/src/mode.cpp
+index 556f60e6..c066e764 100644
+--- a/src/mode.cpp
++++ b/src/mode.cpp
+@@ -1,5 +1,6 @@
+ #include "zep/mode.h"
+ #include "zep/buffer.h"
++#include "zep/commands.h"
+ #include "zep/editor.h"
+ #include "zep/filesystem.h"
+ #include "zep/mcommon/logger.h"
+@@ -291,6 +292,13 @@ void ZepMode::SwitchMode(EditorMode currentMode)
+ 
+ std::string ZepMode::ConvertInputToMapString(uint32_t key, uint32_t modifierKeys)
+ {
++    // Handle Ctrl+letter (key = ASCII control code 1-26) → <C-x>
++    if ((modifierKeys & ModifierKey::Ctrl) && key >= 1 && key <= 26)
++    {
++        char c = 'a' + (key - 1); // map 1→'a', 2→'b', ... 26→'z'
++        return "<C-" + std::string(1, c) + ">";
++    }
++
+     bool brackets = false;
+     std::string str;
+     bool closeBracket = false;
+@@ -347,15 +355,85 @@ std::string ZepMode::ConvertInputToMapString(uint32_t key, uint32_t modifierKeys
+ 
+     if (!mapped.empty())
+     {
+-        brackets = true;
+-        str += mapped;
++        // Special non-printable key; always use bracketed token (e.g., <Return>, <C-Return>)
++        if (brackets)
++            str += "<" + mapped + ">";
++        else
++            str = "<" + mapped + ">";
+     }
+     else
+     {
+-        str += std::string((const char*)&key);
++        // Printable character
++        if (!str.empty())
++        {
++            str += (char)key;
++        }
++        else
++        {
++            str += (char)key;
++        }
++    }
++
++    return str;
++}
++
++if (modifierKeys & ModifierKey::Alt)
++{
++    str += "A-";
++}
++
++if (modifierKeys & ModifierKey::Shift)
++{
++    if (modifierKeys != ModifierKey::Shift || key < ' ')
++    {
++        str += "S-";
+     }
++}
++brackets = !str.empty();
++
++std::string mapped;
++
++#define COMPARE_STR(a, b) \
++    if (key == b)         \
++        mapped = #a;
+ 
+-    return brackets ? "<" + str + ">" : str;
++COMPARE_STR(Return, ExtKeys::RETURN)
++COMPARE_STR(Escape, ExtKeys::ESCAPE)
++COMPARE_STR(Backspace, ExtKeys::BACKSPACE)
++COMPARE_STR(Left, ExtKeys::LEFT)
++COMPARE_STR(Right, ExtKeys::RIGHT)
++COMPARE_STR(Up, ExtKeys::UP)
++COMPARE_STR(Down, ExtKeys::DOWN)
++COMPARE_STR(Tab, ExtKeys::TAB)
++COMPARE_STR(Del, ExtKeys::DEL)
++COMPARE_STR(Home, ExtKeys::HOME)
++COMPARE_STR(End, ExtKeys::END)
++COMPARE_STR(PageDown, ExtKeys::PAGEDOWN)
++COMPARE_STR(PageUp, ExtKeys::PAGEUP)
++COMPARE_STR(F1, ExtKeys::F1)
++COMPARE_STR(F2, ExtKeys::F2)
++COMPARE_STR(F3, ExtKeys::F3)
++COMPARE_STR(F4, ExtKeys::F4)
++COMPARE_STR(F5, ExtKeys::F5)
++COMPARE_STR(F6, ExtKeys::F6)
++COMPARE_STR(F7, ExtKeys::F7)
++COMPARE_STR(F8, ExtKeys::F8)
++COMPARE_STR(F9, ExtKeys::F9)
++COMPARE_STR(F10, ExtKeys::F10)
++COMPARE_STR(F11, ExtKeys::F11)
++COMPARE_STR(F12, ExtKeys::F12)
++
++if (!mapped.empty())
++{
++    brackets = true;
++    str += mapped;
++}
++else
++{
++    str += utf8_from_codepoint(key);
++}
++
++return brackets ? "<" + str + ">" : str;
+ }
+ 
+ // Handle a key press, convert it to an input command and context, and return it.
+@@ -369,20 +447,73 @@ void ZepMode::AddKeyPress(uint32_t key, uint32_t modifierKeys)
+     // Allow full Unicode codepoints; no masking or transformation
+     m_lastKey = key;
+ 
++    // Ex mode special keys: handle directly to avoid appending token to command string
++    if (m_currentMode == EditorMode::Ex)
++    {
++        if (key == ExtKeys::RETURN)
++        {
++            if (HandleExCommand(m_currentCommand))
++            {
++                SwitchMode(DefaultMode());
++                ResetCommand();
++            }
++            return;
++        }
++        if (key == ExtKeys::BACKSPACE)
++        {
++            if (HandleExCommand(m_currentCommand))
++            {
++                SwitchMode(DefaultMode());
++                ResetCommand();
++            }
++            // Update command line display after backspace edit
++            GetEditor().SetCommandText(m_currentCommand);
++            return;
++        }
++        if (key == ExtKeys::ESCAPE)
++        {
++            if (HandleExCommand(m_currentCommand))
++            {
++                SwitchMode(DefaultMode());
++                ResetCommand();
++            }
++            return;
++        }
++    }
++
+     // Get the new command by parsing out the keys
+     // We convert CTRL + f to a string: "<C-f>"
+     HandleMappedInput(ConvertInputToMapString(key, modifierKeys));
++}
++
++// Allow full Unicode codepoints; no masking or transformation
++m_lastKey = key;
+ 
+-    if (m_pCurrentWindow)
++// Special Ex mode handling: Return executes the command without appending Return token
++if (m_currentMode == EditorMode::Ex && key == ExtKeys::RETURN)
++{
++    if (HandleExCommand(m_currentCommand))
+     {
+-        auto notifier = m_pCurrentWindow->GetBuffer().GetPostKeyNotifier();
+-        if (notifier != nullptr)
+-        {
+-            notifier(key, modifierKeys);
+-        }
++        SwitchMode(DefaultMode());
++        ResetCommand();
+     }
++    return;
++}
+ 
+-    timer_restart(m_lastKeyPressTimer);
++// Get the new command by parsing out the keys
++// We convert CTRL + f to a string: "<C-f>"
++HandleMappedInput(ConvertInputToMapString(key, modifierKeys));
++
++if (m_pCurrentWindow)
++{
++    auto notifier = m_pCurrentWindow->GetBuffer().GetPostKeyNotifier();
++    if (notifier != nullptr)
++    {
++        notifier(key, modifierKeys);
++    }
++}
++
++timer_restart(m_lastKeyPressTimer);
+ }
+ 
+ void ZepMode::HandleMappedInput(const std::string& input)
+@@ -562,6 +693,14 @@ void ZepMode::AddCommand(std::shared_ptr<ZepCommand> spCmd)
+     auto& redoStack = m_pCurrentWindow->GetBuffer().GetRedoStack();
+ 
+     spCmd->Redo();
++
++    // Mark buffer as dirty for commands that actually modify the buffer.
++    // Group markers are non-modifying administrative commands, so skip them.
++    if (!std::dynamic_pointer_cast<ZepCommand_GroupMarker>(spCmd) && !std::dynamic_pointer_cast<ZepCommand_EndGroup>(spCmd))
++    {
++        GetCurrentWindow()->GetBuffer().SetFileFlags(FileFlags::Dirty, true);
++    }
++
+     undoStack.push(spCmd);
+ 
+     // Can't redo anything beyond this point
+@@ -1581,12 +1720,33 @@ bool ZepMode::GetCommand(CommandContext& context)
+     }
+     else if (mappedCommand == id_StandardCopy)
+     {
+-        // Ignore empty copy
+-        auto range = GetInclusiveVisualRange();
+-        if (!range.Valid())
++        // Determine the range to copy:
++        // If in Visual mode, use the visual selection (m_visualBegin/End)
++        // Otherwise, fall back to the buffer's selection (e.g., from mouse drag)
++        GlyphRange range;
++        bool usingVisual = false;
++        if (context.currentMode == EditorMode::Visual)
+         {
+-            return true;
++            range = GetInclusiveVisualRange();
++            usingVisual = true;
++        }
++        else
++        {
++            auto& buf = context.buffer;
++            if (buf.HasSelection())
++            {
++                range = buf.GetInclusiveSelection();
++            }
++            else
++            {
++                // No explicit selection; nothing to copy
++                return true;
++            }
+         }
++
++        if (!range.Valid())
++            return true;
++
+         context.beginRange = range.first;
+         context.endRange = range.second.Peek(1);
+         if (context.beginRange == context.endRange)
+@@ -1594,20 +1754,125 @@ bool ZepMode::GetCommand(CommandContext& context)
+             return true;
+         }
+ 
+-        // Copy in standard mode stays in visual mode
+-        context.commandResult.modeSwitch = EditorMode::Visual;
++        // Copy to clipboard registers
+         context.registers.push('0');
+         context.registers.push('*');
+         context.registers.push('+');
++        context.op = CommandOperation::Copy;
++
++        // If copying from visual selection, stay in Visual mode to keep highlighting
++        if (usingVisual)
++        {
++            context.commandResult.modeSwitch = EditorMode::Visual;
++        }
+         context.cursorAfterOverride = context.bufferCursor;
++    }
++    else
++    {
++        auto& buf = context.buffer;
++        if (buf.HasSelection())
++        {
++            range = buf.GetInclusiveSelection();
++        }
++        else
++        {
++            // Fallback to visual range (might be empty)
++            range = GetInclusiveVisualRange();
++            if (!range.Valid())
++                return true;
++        }
++    }
+ 
+-        // Note: select line wise yank if we started in linewise copy mode
+-        context.op = CommandOperation::Copy;
++    if (!range.Valid())
++        return true;
++
++    context.beginRange = range.first;
++    context.endRange = range.second.Peek(1);
++    if (context.beginRange == context.endRange)
++    {
++        return true;
++    }
++
++    // Copy in standard mode stays in visual mode (if we used visual)
++    context.commandResult.modeSwitch = EditorMode::Visual;
++    context.registers.push('0');
++    context.registers.push('*');
++    context.registers.push('+');
++    context.cursorAfterOverride = context.bufferCursor;
++
++    context.op = CommandOperation::Copy;
++}
++else if (mappedCommand == id_StandardPaste)
++{
++    GetEditor().ReadClipboard();
++
++    if (context.currentMode == EditorMode::Visual)
++    {
++        auto range = GetInclusiveVisualRange();
++        if (!range.Valid())
++        {
++            return true;
++        }
++
++        context.replaceRangeMode = ReplaceRangeMode::Replace;
++        context.op = CommandOperation::Replace;
++        context.pRegister = &GetEditor().GetRegister('"');
++        context.beginRange = range.first;
++        context.endRange = range.second.Peek(1);
++        context.cursorAfterOverride = context.beginRange.PeekByteOffset(long(context.pRegister->text.size()));
++        context.commandResult.modeSwitch = EditorMode::Insert;
++    }
++    else
++    {
++        context.beginRange = context.bufferCursor;
++        context.op = CommandOperation::Insert;
++    }
++    context.commandResult.flags = ZSetFlags(context.commandResult.flags, CommandResultFlags::BeginUndoGroup);
++}
++else if (mappedCommand == id_StandardCut)
++{
++    GlyphRange range;
++    if (context.currentMode == EditorMode::Visual)
++    {
++        range = GetInclusiveVisualRange();
++    }
++    else
++    {
++        auto& buf = context.buffer;
++        if (buf.HasSelection())
++        {
++            range = buf.GetInclusiveSelection();
++        }
++        else
++        {
++            return true;
++        }
+     }
+-    else if (mappedCommand == id_StandardPaste)
++
++    if (!range.Valid())
++        return true;
++
++    context.beginRange = range.first;
++    context.endRange = range.second.Peek(1);
++    if (context.beginRange == context.endRange)
+     {
+-        GetEditor().ReadClipboard();
++        return true;
++    }
++
++    // Copy to clipboard registers before deleting (cut operation)
++    context.registers.push('0');
++    context.registers.push('*');
++    context.registers.push('+');
++    context.op = CommandOperation::Delete;
++    context.commandResult.modeSwitch = DefaultMode();
++}
++else if (mappedCommand == id_PasteAfter)
++{
++    GetEditor().ReadClipboard();
+ 
++    if (!context.pRegister->text.empty())
++    {
++        // Already in visual mode, so replace the selection
+         if (context.currentMode == EditorMode::Visual)
+         {
+             auto range = GetInclusiveVisualRange();
+@@ -1615,7 +1880,6 @@ bool ZepMode::GetCommand(CommandContext& context)
+             {
+                 return true;
+             }
+-
+             context.replaceRangeMode = ReplaceRangeMode::Replace;
+             context.op = CommandOperation::Replace;
+             context.pRegister = &GetEditor().GetRegister('"');
+@@ -1626,579 +1890,550 @@ bool ZepMode::GetCommand(CommandContext& context)
+         }
+         else
+         {
+-            context.beginRange = context.bufferCursor;
+-            context.op = CommandOperation::Insert;
+-        }
+-        context.commandResult.flags = ZSetFlags(context.commandResult.flags, CommandResultFlags::BeginUndoGroup);
+-    }
+-    else if (mappedCommand == id_PasteAfter)
+-    {
+-        GetEditor().ReadClipboard();
+-
+-        if (!context.pRegister->text.empty())
+-        {
+-            // Already in visual mode, so replace the selection
+-            if (context.currentMode == EditorMode::Visual)
++            if (context.pRegister->lineWise)
+             {
+-                auto range = GetInclusiveVisualRange();
+-                if (!range.Valid())
+-                {
+-                    return true;
+-                }
+-                context.replaceRangeMode = ReplaceRangeMode::Replace;
+-                context.op = CommandOperation::Replace;
+-                context.pRegister = &GetEditor().GetRegister('"');
+-                context.beginRange = range.first;
+-                context.endRange = range.second.Peek(1);
+-                context.cursorAfterOverride = context.beginRange.PeekByteOffset(long(context.pRegister->text.size()));
+-                context.commandResult.modeSwitch = EditorMode::Insert;
++                context.beginRange = context.buffer.GetLinePos(context.bufferCursor, LineLocation::BeyondLineEnd);
++                context.cursorAfterOverride = context.beginRange;
+             }
+             else
+             {
+-                if (context.pRegister->lineWise)
+-                {
+-                    context.beginRange = context.buffer.GetLinePos(context.bufferCursor, LineLocation::BeyondLineEnd);
+-                    context.cursorAfterOverride = context.beginRange;
+-                }
+-                else
+-                {
+-                    context.beginRange = cursorItr.PeekLineClamped(1, LineLocation::LineCRBegin);
+-                }
+-                context.op = CommandOperation::Insert;
++                context.beginRange = cursorItr.PeekLineClamped(1, LineLocation::LineCRBegin);
+             }
++            context.op = CommandOperation::Insert;
+         }
+-        context.commandResult.flags = ZSetFlags(context.commandResult.flags, CommandResultFlags::BeginUndoGroup);
+     }
+-    else if (mappedCommand == id_PasteBefore)
++    context.commandResult.flags = ZSetFlags(context.commandResult.flags, CommandResultFlags::BeginUndoGroup);
++}
++else if (mappedCommand == id_PasteBefore)
++{
++    if (!context.pRegister->text.empty())
+     {
+-        if (!context.pRegister->text.empty())
++        // Already in visual mode, so replace the selection with whatever we copied
++        if (context.currentMode == EditorMode::Visual)
+         {
+-            // Already in visual mode, so replace the selection with whatever we copied
+-            if (context.currentMode == EditorMode::Visual)
++            auto range = GetInclusiveVisualRange();
++            if (!range.Valid())
+             {
+-                auto range = GetInclusiveVisualRange();
+-                if (!range.Valid())
+-                {
+-                    return true;
+-                }
+-                context.pRegister = &GetEditor().GetRegister('"');
+-                context.beginRange = range.first;
+-                context.endRange = range.second.Peek(1);
+-                context.cursorAfterOverride = context.beginRange.PeekByteOffset(long(context.pRegister->text.size()));
+-                context.commandResult.modeSwitch = EditorMode::Insert;
+-                context.replaceRangeMode = ReplaceRangeMode::Replace;
+-                context.op = CommandOperation::Replace;
++                return true;
++            }
++            context.pRegister = &GetEditor().GetRegister('"');
++            context.beginRange = range.first;
++            context.endRange = range.second.Peek(1);
++            context.cursorAfterOverride = context.beginRange.PeekByteOffset(long(context.pRegister->text.size()));
++            context.commandResult.modeSwitch = EditorMode::Insert;
++            context.replaceRangeMode = ReplaceRangeMode::Replace;
++            context.op = CommandOperation::Replace;
++        }
++        else
++        {
++            if (context.pRegister->lineWise)
++            {
++                context.beginRange = context.buffer.GetLinePos(context.bufferCursor, LineLocation::LineBegin);
+             }
+             else
+             {
+-                if (context.pRegister->lineWise)
+-                {
+-                    context.beginRange = context.buffer.GetLinePos(context.bufferCursor, LineLocation::LineBegin);
+-                }
+-                else
+-                {
+-                    context.beginRange = context.bufferCursor;
+-                }
+-                context.op = CommandOperation::Insert;
++                context.beginRange = context.bufferCursor;
+             }
++            context.op = CommandOperation::Insert;
+         }
+-        context.commandResult.flags = ZSetFlags(context.commandResult.flags, CommandResultFlags::BeginUndoGroup);
+     }
+-    else if (mappedCommand == id_InsertMode)
++    context.commandResult.flags = ZSetFlags(context.commandResult.flags, CommandResultFlags::BeginUndoGroup);
++}
++else if (mappedCommand == id_InsertMode)
++{
++    // TODO: I think this should be a 'command' which would get replayed with dot;
++    // instead of special casing it later, we could just insert it into the stream of commands
++    // Then undo/redo would replay the insert operation neatly
++    context.commandResult.modeSwitch = EditorMode::Insert;
++    return true;
++}
++else if (mappedCommand == id_VisualSelectInnerWORD)
++{
++    if (GetOperationRange("iW", context.currentMode, context.beginRange, context.endRange))
+     {
+-        // TODO: I think this should be a 'command' which would get replayed with dot;
+-        // instead of special casing it later, we could just insert it into the stream of commands
+-        // Then undo/redo would replay the insert operation neatly
+-        context.commandResult.modeSwitch = EditorMode::Insert;
++        m_visualBegin = context.beginRange;
++        GetCurrentWindow()->SetBufferCursor(context.endRange - 1);
++        UpdateVisualSelection();
+         return true;
+     }
+-    else if (mappedCommand == id_VisualSelectInnerWORD)
++    return true;
++}
++else if (mappedCommand == id_VisualSelectInnerWord)
++{
++    if (GetOperationRange("iw", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("iW", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            m_visualBegin = context.beginRange;
+-            GetCurrentWindow()->SetBufferCursor(context.endRange - 1);
+-            UpdateVisualSelection();
+-            return true;
+-        }
++        m_visualBegin = context.beginRange;
++        GetCurrentWindow()->SetBufferCursor(context.endRange - 1);
++        UpdateVisualSelection();
+         return true;
+     }
+-    else if (mappedCommand == id_VisualSelectInnerWord)
+-    {
+-        if (GetOperationRange("iw", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            m_visualBegin = context.beginRange;
+-            GetCurrentWindow()->SetBufferCursor(context.endRange - 1);
+-            UpdateVisualSelection();
+-            return true;
+-        }
+-    }
+-    else if (mappedCommand == id_VisualSelectAWord)
++}
++else if (mappedCommand == id_VisualSelectAWord)
++{
++    if (GetOperationRange("aw", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("aw", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            m_visualBegin = context.beginRange;
+-            GetCurrentWindow()->SetBufferCursor(context.endRange - 1);
+-            UpdateVisualSelection();
+-            return true;
+-        }
++        m_visualBegin = context.beginRange;
++        GetCurrentWindow()->SetBufferCursor(context.endRange - 1);
++        UpdateVisualSelection();
++        return true;
+     }
+-    else if (mappedCommand == id_VisualSelectAWORD)
++}
++else if (mappedCommand == id_VisualSelectAWORD)
++{
++    if (GetOperationRange("aW", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("aW", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            m_visualBegin = context.beginRange;
+-            GetCurrentWindow()->SetBufferCursor(context.endRange - 1);
+-            UpdateVisualSelection();
+-            return true;
+-        }
++        m_visualBegin = context.beginRange;
++        GetCurrentWindow()->SetBufferCursor(context.endRange - 1);
++        UpdateVisualSelection();
+         return true;
+     }
+-    else if (mappedCommand == id_DeleteToLineEnd)
++    return true;
++}
++else if (mappedCommand == id_DeleteToLineEnd)
++{
++    if (GetOperationRange("$", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("$", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-        }
++        context.op = CommandOperation::Delete;
+     }
+-    else if (mappedCommand == id_VisualDelete)
++}
++else if (mappedCommand == id_VisualDelete)
++{
++    // Only in visual mode; delete selected block
++    if (GetOperationRange("visual", context.currentMode, context.beginRange, context.endRange))
+     {
+-        // Only in visual mode; delete selected block
+-        if (GetOperationRange("visual", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-            context.commandResult.modeSwitch = DefaultMode();
+-        }
++        context.op = CommandOperation::Delete;
++        context.commandResult.modeSwitch = DefaultMode();
+     }
+-    else if (mappedCommand == id_DeleteLine)
++}
++else if (mappedCommand == id_DeleteLine)
++{
++    if (GetOperationRange("line", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("line", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::DeleteLines;
+-            context.commandResult.modeSwitch = DefaultMode();
+-            context.cursorAfterOverride = context.buffer.GetLinePos(context.beginRange, LineLocation::LineBegin);
+-        }
++        context.op = CommandOperation::DeleteLines;
++        context.commandResult.modeSwitch = DefaultMode();
++        context.cursorAfterOverride = context.buffer.GetLinePos(context.beginRange, LineLocation::LineBegin);
+     }
+-    else if (mappedCommand == id_DeleteWord)
++}
++else if (mappedCommand == id_DeleteWord)
++{
++    if (GetOperationRange("w", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("w", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-        }
++        context.op = CommandOperation::Delete;
+     }
+-    else if (mappedCommand == id_DeleteWORD)
++}
++else if (mappedCommand == id_DeleteWORD)
++{
++    if (GetOperationRange("W", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("W", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-        }
++        context.op = CommandOperation::Delete;
+     }
+-    else if (mappedCommand == id_DeleteAWord)
++}
++else if (mappedCommand == id_DeleteAWord)
++{
++    if (GetOperationRange("aw", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("aw", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-        }
++        context.op = CommandOperation::Delete;
+     }
+-    else if (mappedCommand == id_DeleteAWORD)
++}
++else if (mappedCommand == id_DeleteAWORD)
++{
++    if (GetOperationRange("aW", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("aW", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-        }
++        context.op = CommandOperation::Delete;
+     }
+-    else if (mappedCommand == id_DeleteInnerWord)
++}
++else if (mappedCommand == id_DeleteInnerWord)
++{
++    if (GetOperationRange("iw", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("iw", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-        }
++        context.op = CommandOperation::Delete;
+     }
+-    else if (mappedCommand == id_DeleteInnerWORD)
++}
++else if (mappedCommand == id_DeleteInnerWORD)
++{
++    if (GetOperationRange("iW", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("iW", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-        }
++        context.op = CommandOperation::Delete;
+     }
+-    else if (mappedCommand == id_ChangeToLineEnd)
++}
++else if (mappedCommand == id_ChangeToLineEnd)
++{
++    if (GetOperationRange("$", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("$", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-            context.commandResult.modeSwitch = EditorMode::Insert;
+-        }
++        context.op = CommandOperation::Delete;
++        context.commandResult.modeSwitch = EditorMode::Insert;
+     }
+-    else if (mappedCommand == id_VisualChange)
++}
++else if (mappedCommand == id_VisualChange)
++{
++    // Only in visual mode; delete selected block
++    if (GetOperationRange("visual", context.currentMode, context.beginRange, context.endRange))
+     {
+-        // Only in visual mode; delete selected block
+-        if (GetOperationRange("visual", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-            context.commandResult.modeSwitch = EditorMode::Insert;
+-        }
++        context.op = CommandOperation::Delete;
++        context.commandResult.modeSwitch = EditorMode::Insert;
+     }
+-    else if (mappedCommand == id_ChangeLine)
++}
++else if (mappedCommand == id_ChangeLine)
++{
++    if (GetOperationRange("line", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("line", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::DeleteLines;
+-            context.commandResult.modeSwitch = EditorMode::Insert;
+-        }
++        context.op = CommandOperation::DeleteLines;
++        context.commandResult.modeSwitch = EditorMode::Insert;
+     }
+-    else if (mappedCommand == id_ChangeWord)
++}
++else if (mappedCommand == id_ChangeWord)
++{
++    if (GetOperationRange("cw", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("cw", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-            context.commandResult.modeSwitch = EditorMode::Insert;
+-        }
++        context.op = CommandOperation::Delete;
++        context.commandResult.modeSwitch = EditorMode::Insert;
+     }
+-    else if (mappedCommand == id_ChangeWORD)
++}
++else if (mappedCommand == id_ChangeWORD)
++{
++    if (GetOperationRange("cW", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("cW", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-            context.commandResult.modeSwitch = EditorMode::Insert;
+-        }
++        context.op = CommandOperation::Delete;
++        context.commandResult.modeSwitch = EditorMode::Insert;
+     }
+-    else if (mappedCommand == id_ChangeAWord)
++}
++else if (mappedCommand == id_ChangeAWord)
++{
++    if (GetOperationRange("aw", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("aw", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-            context.commandResult.modeSwitch = EditorMode::Insert;
+-        }
++        context.op = CommandOperation::Delete;
++        context.commandResult.modeSwitch = EditorMode::Insert;
+     }
+-    else if (mappedCommand == id_ChangeAWORD)
++}
++else if (mappedCommand == id_ChangeAWORD)
++{
++    if (GetOperationRange("aW", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("aW", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-            context.commandResult.modeSwitch = EditorMode::Insert;
+-        }
++        context.op = CommandOperation::Delete;
++        context.commandResult.modeSwitch = EditorMode::Insert;
+     }
+-    else if (mappedCommand == id_ChangeInnerWord)
++}
++else if (mappedCommand == id_ChangeInnerWord)
++{
++    if (GetOperationRange("iw", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("iw", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-            context.commandResult.modeSwitch = EditorMode::Insert;
+-        }
++        context.op = CommandOperation::Delete;
++        context.commandResult.modeSwitch = EditorMode::Insert;
+     }
+-    else if (mappedCommand == id_ChangeInnerWORD)
++}
++else if (mappedCommand == id_ChangeInnerWORD)
++{
++    if (GetOperationRange("iW", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("iW", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-            context.commandResult.modeSwitch = EditorMode::Insert;
+-        }
++        context.op = CommandOperation::Delete;
++        context.commandResult.modeSwitch = EditorMode::Insert;
+     }
+-    else if (mappedCommand == id_ChangeIn)
++}
++else if (mappedCommand == id_ChangeIn)
++{
++    if (!context.keymap.captureChars.empty())
+     {
+-        if (!context.keymap.captureChars.empty())
++        auto range = buffer.FindMatchingPair(bufferCursor, context.keymap.captureChars[0]);
++        if (range.first.Valid() && range.second.Valid())
+         {
+-            auto range = buffer.FindMatchingPair(bufferCursor, context.keymap.captureChars[0]);
+-            if (range.first.Valid() && range.second.Valid())
++            if ((range.first + 1) == range.second)
++            {
++                // A closed pair (); so insert between them
++                GetCurrentWindow()->SetBufferCursor(range.first + 1);
++                context.commandResult.modeSwitch = EditorMode::Insert;
++                return true;
++            }
++            else
+             {
+-                if ((range.first + 1) == range.second)
++                GlyphIterator lineEnd = context.buffer.GetLinePos(range.first, LineLocation::LineCRBegin);
++                if (lineEnd.Valid() && lineEnd < range.second)
+                 {
+-                    // A closed pair (); so insert between them
+-                    GetCurrentWindow()->SetBufferCursor(range.first + 1);
++                    GlyphIterator lineStart = context.buffer.GetLinePos(range.first, LineLocation::LineBegin);
++                    auto offsetStart = (range.first.Index() - lineStart.Index());
++
++                    // If change in a pair of delimeters that are on seperate lines, then
++                    // we remove everything and replace with 2 CRs and an indent based on the start bracket
++                    // Since Zep doesn't auto indent, this is the best we can do for now.
++                    context.replaceRangeMode = ReplaceRangeMode::Replace;
++                    context.op = CommandOperation::Replace;
++
++                    auto offsetText = std::string(offsetStart + 4, ' ');
++                    auto offsetBracket = std::string(offsetStart, ' ');
++                    context.tempReg.text = std::string("\n") + offsetText + "\n" + offsetBracket;
++                    context.pRegister = &context.tempReg;
++                    context.beginRange = range.first + 1;
++                    context.endRange = range.second;
++                    context.cursorAfterOverride = range.first + (long)offsetText.length() + 2;
+                     context.commandResult.modeSwitch = EditorMode::Insert;
+-                    return true;
+                 }
+                 else
+                 {
+-                    GlyphIterator lineEnd = context.buffer.GetLinePos(range.first, LineLocation::LineCRBegin);
+-                    if (lineEnd.Valid() && lineEnd < range.second)
+-                    {
+-                        GlyphIterator lineStart = context.buffer.GetLinePos(range.first, LineLocation::LineBegin);
+-                        auto offsetStart = (range.first.Index() - lineStart.Index());
+-
+-                        // If change in a pair of delimeters that are on seperate lines, then
+-                        // we remove everything and replace with 2 CRs and an indent based on the start bracket
+-                        // Since Zep doesn't auto indent, this is the best we can do for now.
+-                        context.replaceRangeMode = ReplaceRangeMode::Replace;
+-                        context.op = CommandOperation::Replace;
+-
+-                        auto offsetText = std::string(offsetStart + 4, ' ');
+-                        auto offsetBracket = std::string(offsetStart, ' ');
+-                        context.tempReg.text = std::string("\n") + offsetText + "\n" + offsetBracket;
+-                        context.pRegister = &context.tempReg;
+-                        context.beginRange = range.first + 1;
+-                        context.endRange = range.second;
+-                        context.cursorAfterOverride = range.first + (long)offsetText.length() + 2;
+-                        context.commandResult.modeSwitch = EditorMode::Insert;
+-                    }
+-                    else
+-                    {
+-                        context.beginRange = range.first + 1; // returned range is inclusive
+-                        context.endRange = range.second;
+-                        context.op = CommandOperation::Delete;
+-                        context.commandResult.modeSwitch = EditorMode::Insert;
+-                    }
++                    context.beginRange = range.first + 1; // returned range is inclusive
++                    context.endRange = range.second;
++                    context.op = CommandOperation::Delete;
++                    context.commandResult.modeSwitch = EditorMode::Insert;
+                 }
+             }
+         }
+     }
+-    else if (mappedCommand == id_SubstituteLine)
++}
++else if (mappedCommand == id_SubstituteLine)
++{
++    // Delete whole line and go to insert mode
++    context.beginRange = context.buffer.GetLinePos(context.bufferCursor, LineLocation::LineBegin);
++    context.endRange = context.buffer.GetLinePos(context.bufferCursor, LineLocation::LineCRBegin);
++    context.op = CommandOperation::Delete;
++    context.commandResult.modeSwitch = EditorMode::Insert;
++}
++else if (mappedCommand == id_Substitute)
++{
++    // Only in visual mode; delete selected block and go to insert mode
++    // Just delete under m_bufferCursor and insert
++    if (GetOperationRange("cursor", context.currentMode, context.beginRange, context.endRange))
+     {
+-        // Delete whole line and go to insert mode
+-        context.beginRange = context.buffer.GetLinePos(context.bufferCursor, LineLocation::LineBegin);
+-        context.endRange = context.buffer.GetLinePos(context.bufferCursor, LineLocation::LineCRBegin);
+         context.op = CommandOperation::Delete;
+         context.commandResult.modeSwitch = EditorMode::Insert;
+     }
+-    else if (mappedCommand == id_Substitute)
+-    {
+-        // Only in visual mode; delete selected block and go to insert mode
+-        // Just delete under m_bufferCursor and insert
+-        if (GetOperationRange("cursor", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-            context.commandResult.modeSwitch = EditorMode::Insert;
+-        }
+-    }
+-    else if (mappedCommand == id_VisualSubstitute)
++}
++else if (mappedCommand == id_VisualSubstitute)
++{
++    if (GetOperationRange("visual", context.currentMode, context.beginRange, context.endRange))
+     {
+-        if (GetOperationRange("visual", context.currentMode, context.beginRange, context.endRange))
+-        {
+-            context.op = CommandOperation::Delete;
+-            context.commandResult.modeSwitch = EditorMode::Insert;
+-        }
++        context.op = CommandOperation::Delete;
++        context.commandResult.modeSwitch = EditorMode::Insert;
+     }
+-    else if (mappedCommand == id_Find)
++}
++else if (mappedCommand == id_Find)
++{
++    if (!context.keymap.captureChars.empty())
+     {
+-        if (!context.keymap.captureChars.empty())
+-        {
+-            GetCurrentWindow()->SetBufferCursor(context.buffer.FindOnLineMotion(bufferCursor, (const uint8_t*)&context.keymap.captureChars[0], Direction::Forward));
+-            m_lastFind = context.keymap.captureChars[0];
+-            m_lastFindDirection = Direction::Forward;
+-        }
+-        return true;
++        GetCurrentWindow()->SetBufferCursor(context.buffer.FindOnLineMotion(bufferCursor, (const uint8_t*)&context.keymap.captureChars[0], Direction::Forward));
++        m_lastFind = context.keymap.captureChars[0];
++        m_lastFindDirection = Direction::Forward;
+     }
+-    else if (mappedCommand == id_FindBackwards)
++    return true;
++}
++else if (mappedCommand == id_FindBackwards)
++{
++    if (!context.keymap.captureChars.empty())
+     {
+-        if (!context.keymap.captureChars.empty())
+-        {
+-            GetCurrentWindow()->SetBufferCursor(context.buffer.FindOnLineMotion(bufferCursor, (const uint8_t*)&context.keymap.captureChars[0], Direction::Backward));
+-            m_lastFind = context.keymap.captureChars[0];
+-            m_lastFindDirection = Direction::Backward;
+-        }
+-        return true;
++        GetCurrentWindow()->SetBufferCursor(context.buffer.FindOnLineMotion(bufferCursor, (const uint8_t*)&context.keymap.captureChars[0], Direction::Backward));
++        m_lastFind = context.keymap.captureChars[0];
++        m_lastFindDirection = Direction::Backward;
+     }
+-    else if (mappedCommand == id_FindNext)
++    return true;
++}
++else if (mappedCommand == id_FindNext)
++{
++    GetCurrentWindow()->SetBufferCursor(context.buffer.FindOnLineMotion(bufferCursor, (const uint8_t*)m_lastFind.c_str(), m_lastFindDirection));
++    return true;
++}
++else if (mappedCommand == id_FindNextDelimiter)
++{
++    auto loc = context.buffer.FindMatchingParen(bufferCursor);
++    if (loc.Valid())
+     {
+-        GetCurrentWindow()->SetBufferCursor(context.buffer.FindOnLineMotion(bufferCursor, (const uint8_t*)m_lastFind.c_str(), m_lastFindDirection));
++        GetCurrentWindow()->SetBufferCursor(loc);
+         return true;
+     }
+-    else if (mappedCommand == id_FindNextDelimiter)
++    return false;
++}
++else if (mappedCommand == id_Append)
++{
++    // Cursor append
++    cursorItr.MoveClamped(1, LineLocation::LineCRBegin);
++    GetCurrentWindow()->SetBufferCursor(cursorItr);
++    context.commandResult.modeSwitch = EditorMode::Insert;
++    return true;
++}
++else if (mappedCommand == id_AppendToLine)
++{
++    GlyphIterator appendItr = context.buffer.GetLinePos(bufferCursor, LineLocation::LineLastNonCR);
++    appendItr.MoveClamped(1, LineLocation::LineCRBegin);
++    GetCurrentWindow()->SetBufferCursor(appendItr);
++    context.commandResult.modeSwitch = EditorMode::Insert;
++    return true;
++}
++else if (mappedCommand == id_InsertAtFirstChar)
++{
++    GetCurrentWindow()->SetBufferCursor(context.buffer.GetLinePos(bufferCursor, LineLocation::LineFirstGraphChar));
++    context.commandResult.modeSwitch = EditorMode::Insert;
++    return true;
++}
++else if (mappedCommand == id_MotionNextFirstChar)
++{
++    GetCurrentWindow()->MoveCursorY(1);
++    GetCurrentWindow()->SetBufferCursor(context.buffer.GetLinePos(GetCurrentWindow()->GetBufferCursor(), LineLocation::LineBegin));
++    return true;
++}
++else if (mappedCommand == id_Replace)
++{
++    if (!context.keymap.captureChars.empty())
+     {
+-        auto loc = context.buffer.FindMatchingParen(bufferCursor);
+-        if (loc.Valid())
++        context.commandResult.flags |= CommandResultFlags::HandledCount;
++
++        if (!bufferCursor.PeekByteOffset(context.keymap.TotalCount()).Valid())
+         {
+-            GetCurrentWindow()->SetBufferCursor(loc);
++            // Outside the valid buffer; an invalid replace with count!
+             return true;
+         }
+-        return false;
+-    }
+-    else if (mappedCommand == id_Append)
+-    {
+-        // Cursor append
+-        cursorItr.MoveClamped(1, LineLocation::LineCRBegin);
+-        GetCurrentWindow()->SetBufferCursor(cursorItr);
+-        context.commandResult.modeSwitch = EditorMode::Insert;
+-        return true;
+-    }
+-    else if (mappedCommand == id_AppendToLine)
+-    {
+-        GlyphIterator appendItr = context.buffer.GetLinePos(bufferCursor, LineLocation::LineLastNonCR);
+-        appendItr.MoveClamped(1, LineLocation::LineCRBegin);
+-        GetCurrentWindow()->SetBufferCursor(appendItr);
+-        context.commandResult.modeSwitch = EditorMode::Insert;
+-        return true;
+-    }
+-    else if (mappedCommand == id_InsertAtFirstChar)
+-    {
+-        GetCurrentWindow()->SetBufferCursor(context.buffer.GetLinePos(bufferCursor, LineLocation::LineFirstGraphChar));
+-        context.commandResult.modeSwitch = EditorMode::Insert;
+-        return true;
+-    }
+-    else if (mappedCommand == id_MotionNextFirstChar)
+-    {
+-        GetCurrentWindow()->MoveCursorY(1);
+-        GetCurrentWindow()->SetBufferCursor(context.buffer.GetLinePos(GetCurrentWindow()->GetBufferCursor(), LineLocation::LineBegin));
+-        return true;
+-    }
+-    else if (mappedCommand == id_Replace)
+-    {
+-        if (!context.keymap.captureChars.empty())
+-        {
+-            context.commandResult.flags |= CommandResultFlags::HandledCount;
+-
+-            if (!bufferCursor.PeekByteOffset(context.keymap.TotalCount()).Valid())
+-            {
+-                // Outside the valid buffer; an invalid replace with count!
+-                return true;
+-            }
+ 
+-            context.replaceRangeMode = ReplaceRangeMode::Fill;
+-            context.op = CommandOperation::Replace;
+-            context.tempReg.text = context.keymap.captureChars[0];
+-            context.pRegister = &context.tempReg;
+-
+-            // Get the range from visual, or use the cursor location
+-            if (!GetOperationRange("visual", context.currentMode, context.beginRange, context.endRange))
+-            {
+-                context.beginRange = cursorItr;
+-                context.endRange = cursorItr.PeekLineClamped(context.keymap.TotalCount(), LineLocation::LineCRBegin);
+-            }
++        context.replaceRangeMode = ReplaceRangeMode::Fill;
++        context.op = CommandOperation::Replace;
++        context.tempReg.text = context.keymap.captureChars[0];
++        context.pRegister = &context.tempReg;
+ 
+-            context.commandResult.modeSwitch = DefaultMode();
+-        }
+-    }
+-    else if (mappedCommand == id_ChangeToChar)
+-    {
+-        if (!context.keymap.captureChars.empty())
++        // Get the range from visual, or use the cursor location
++        if (!GetOperationRange("visual", context.currentMode, context.beginRange, context.endRange))
+         {
+-            context.beginRange = bufferCursor;
+-            context.endRange = buffer.FindOnLineMotion(bufferCursor, (const uint8_t*)&context.keymap.captureChars[0], Direction::Forward);
+-            context.op = CommandOperation::Delete;
+-            context.commandResult.modeSwitch = EditorMode::Insert;
++            context.beginRange = cursorItr;
++            context.endRange = cursorItr.PeekLineClamped(context.keymap.TotalCount(), LineLocation::LineCRBegin);
+         }
++
++        context.commandResult.modeSwitch = DefaultMode();
+     }
+-    else if (mappedCommand == id_DeleteToChar)
++}
++else if (mappedCommand == id_ChangeToChar)
++{
++    if (!context.keymap.captureChars.empty())
+     {
+-        if (!context.keymap.captureChars.empty())
+-        {
+-            context.beginRange = bufferCursor;
+-            context.endRange = buffer.FindOnLineMotion(bufferCursor, (const uint8_t*)&context.keymap.captureChars[0], Direction::Forward);
+-            context.op = CommandOperation::Delete;
+-        }
++        context.beginRange = bufferCursor;
++        context.endRange = buffer.FindOnLineMotion(bufferCursor, (const uint8_t*)&context.keymap.captureChars[0], Direction::Forward);
++        context.op = CommandOperation::Delete;
++        context.commandResult.modeSwitch = EditorMode::Insert;
+     }
+-    else if (mappedCommand == id_Save)
++}
++else if (mappedCommand == id_DeleteToChar)
++{
++    if (!context.keymap.captureChars.empty())
+     {
+-        GetEditor().SaveBuffer(GetCurrentWindow()->GetBuffer());
++        context.beginRange = bufferCursor;
++        context.endRange = buffer.FindOnLineMotion(bufferCursor, (const uint8_t*)&context.keymap.captureChars[0], Direction::Forward);
++        context.op = CommandOperation::Delete;
+     }
+-    else if (m_currentMode == EditorMode::Insert)
+-    {
+-        auto& text = context.keymap.commandWithoutGroups;
++}
++else if (mappedCommand == id_Save)
++{
++    GetEditor().SaveBuffer(GetCurrentWindow()->GetBuffer());
++}
++else if (m_currentMode == EditorMode::Insert)
++{
++    auto& text = context.keymap.commandWithoutGroups;
+ 
+-        // Detect attempted insertion of a 'special', such as <C-u> which may not have been mapped
+-        if (text.size() > 3 && text[0] == '<' && text[text.size() - 1] == '>')
+-        {
+-            return false;
+-        }
++    // Detect attempted insertion of a 'special', such as <C-u> which may not have been mapped
++    if (text.size() > 3 && text[0] == '<' && text[text.size() - 1] == '>')
++    {
++        return false;
++    }
+ 
+-        context.beginRange = context.bufferCursor;
+-        context.tempReg.text = text;
+-        context.pRegister = &context.tempReg;
+-        context.op = CommandOperation::Insert;
+-        context.commandResult.modeSwitch = EditorMode::Insert;
+-        context.commandResult.flags |= CommandResultFlags::HandledCount;
++    context.beginRange = context.bufferCursor;
++    context.tempReg.text = text;
++    context.pRegister = &context.tempReg;
++    context.op = CommandOperation::Insert;
++    context.commandResult.modeSwitch = EditorMode::Insert;
++    context.commandResult.flags |= CommandResultFlags::HandledCount;
+ 
+-        // Insert grouping command if necessary
+-        if (context.fullCommand == " ")
+-        {
+-            context.commandResult.flags = ZSetFlags(context.commandResult.flags, CommandResultFlags::BeginUndoGroup, shouldGroupInserts);
+-        }
++    // Insert grouping command if necessary
++    if (context.fullCommand == " ")
++    {
++        context.commandResult.flags = ZSetFlags(context.commandResult.flags, CommandResultFlags::BeginUndoGroup, shouldGroupInserts);
+     }
++}
+ 
+-    GetEditor().Broadcast(std::make_shared<ModifyCommandMessage>(context));
++GetEditor().Broadcast(std::make_shared<ModifyCommandMessage>(context));
+ 
+-    // Update the registers based on context state
+-    context.UpdateRegisters();
++// Update the registers based on context state
++context.UpdateRegisters();
+ 
+-    // Setup command, if any
+-    if (context.op == CommandOperation::Delete || context.op == CommandOperation::DeleteLines)
++// Setup command, if any
++if (context.op == CommandOperation::Delete || context.op == CommandOperation::DeleteLines)
++{
++    // Check if in multi-cursor mode
++    auto pWindow = GetCurrentWindow();
++    if (pWindow && pWindow->IsMultiCursorMode() && !pWindow->GetAllCursors().empty())
+     {
+-        // Check if in multi-cursor mode
+-        auto pWindow = GetCurrentWindow();
+-        if (pWindow && pWindow->IsMultiCursorMode() && !pWindow->GetAllCursors().empty())
++        // Collect all ranges for deletion
++        std::vector<std::pair<GlyphIterator, GlyphIterator>> allRanges;
++        allRanges.push_back(std::make_pair(context.beginRange, context.endRange));
++        const auto& selections = pWindow->GetAllSelections();
++        for (const auto& sel : selections)
+         {
+-            // Collect all ranges for deletion
+-            std::vector<std::pair<GlyphIterator, GlyphIterator>> allRanges;
+-            allRanges.push_back(std::make_pair(context.beginRange, context.endRange));
+-            const auto& selections = pWindow->GetAllSelections();
+-            for (const auto& sel : selections)
+-            {
+-                allRanges.push_back(std::make_pair(sel.first, sel.second));
+-            }
+-
+-            auto cmd = std::make_shared<ZepCommand_MultiCursorDelete>(
+-                context.buffer,
+-                allRanges);
+-            context.commandResult.spCommand = std::static_pointer_cast<ZepCommand>(cmd);
+-            return true;
+-        }
+-        else
+-        {
+-            auto cmd = std::make_shared<ZepCommand_DeleteRange>(
+-                context.buffer,
+-                context.beginRange,
+-                context.endRange,
+-                context.bufferCursor,
+-                context.cursorAfterOverride);
+-            context.commandResult.spCommand = std::static_pointer_cast<ZepCommand>(cmd);
++            allRanges.push_back(std::make_pair(sel.first, sel.second));
+         }
+-        context.commandResult.flags = ZSetFlags(context.commandResult.flags, CommandResultFlags::BeginUndoGroup);
++
++        auto cmd = std::make_shared<ZepCommand_MultiCursorDelete>(
++            context.buffer,
++            allRanges);
++        context.commandResult.spCommand = std::static_pointer_cast<ZepCommand>(cmd);
+         return true;
+     }
+-    else if (context.op == CommandOperation::Insert && !context.pRegister->text.empty())
++    else
+     {
+-        // Check if in multi-cursor mode
+-        auto pWindow = GetCurrentWindow();
+-        if (pWindow && pWindow->IsMultiCursorMode() && !pWindow->GetAllCursors().empty())
+-        {
+-            // Collect all cursor positions
+-            std::vector<GlyphIterator> allCursors;
+-            allCursors.push_back(context.bufferCursor);
+-            for (const auto& c : pWindow->GetAllCursors())
+-            {
+-                allCursors.push_back(c);
+-            }
+-
+-            auto cmd = std::make_shared<ZepCommand_MultiCursorInsert>(
+-                context.buffer,
+-                allCursors,
+-                context.pRegister->text);
+-            context.commandResult.spCommand = std::static_pointer_cast<ZepCommand>(cmd);
+-            return true;
+-        }
+-        else
++        auto cmd = std::make_shared<ZepCommand_DeleteRange>(
++            context.buffer,
++            context.beginRange,
++            context.endRange,
++            context.bufferCursor,
++            context.cursorAfterOverride);
++        context.commandResult.spCommand = std::static_pointer_cast<ZepCommand>(cmd);
++    }
++    context.commandResult.flags = ZSetFlags(context.commandResult.flags, CommandResultFlags::BeginUndoGroup);
++    return true;
++}
++else if (context.op == CommandOperation::Insert && !context.pRegister->text.empty())
++{
++    // Check if in multi-cursor mode
++    auto pWindow = GetCurrentWindow();
++    if (pWindow && pWindow->IsMultiCursorMode() && !pWindow->GetAllCursors().empty())
++    {
++        // Collect all cursor positions
++        std::vector<GlyphIterator> allCursors;
++        allCursors.push_back(context.bufferCursor);
++        for (const auto& c : pWindow->GetAllCursors())
+         {
+-            auto cmd = std::make_shared<ZepCommand_Insert>(
+-                context.buffer,
+-                context.beginRange,
+-                context.pRegister->text,
+-                context.bufferCursor,
+-                context.cursorAfterOverride);
+-            context.commandResult.spCommand = std::static_pointer_cast<ZepCommand>(cmd);
++            allCursors.push_back(c);
+         }
++
++        auto cmd = std::make_shared<ZepCommand_MultiCursorInsert>(
++            context.buffer,
++            allCursors,
++            context.pRegister->text);
++        context.commandResult.spCommand = std::static_pointer_cast<ZepCommand>(cmd);
+         return true;
+     }
+-    else if (context.op == CommandOperation::Replace && !context.pRegister->text.empty())
++    else
+     {
+-        auto cmd = std::make_shared<ZepCommand_ReplaceRange>(
++        auto cmd = std::make_shared<ZepCommand_Insert>(
+             context.buffer,
+-            context.replaceRangeMode,
+             context.beginRange,
+-            context.endRange,
+             context.pRegister->text,
+             context.bufferCursor,
+             context.cursorAfterOverride);
+         context.commandResult.spCommand = std::static_pointer_cast<ZepCommand>(cmd);
+-        return true;
+-    }
+-    else if (context.op == CommandOperation::Copy || context.op == CommandOperation::CopyLines)
+-    {
+-        // Put the cursor where the command says it should be
+-        GetCurrentWindow()->SetBufferCursor(context.cursorAfterOverride);
+-        return true;
+     }
++    return true;
++}
++else if (context.op == CommandOperation::Replace && !context.pRegister->text.empty())
++{
++    auto cmd = std::make_shared<ZepCommand_ReplaceRange>(
++        context.buffer,
++        context.replaceRangeMode,
++        context.beginRange,
++        context.endRange,
++        context.pRegister->text,
++        context.bufferCursor,
++        context.cursorAfterOverride);
++    context.commandResult.spCommand = std::static_pointer_cast<ZepCommand>(cmd);
++    return true;
++}
++else if (context.op == CommandOperation::Copy || context.op == CommandOperation::CopyLines)
++{
++    // Put the cursor where the command says it should be
++    GetCurrentWindow()->SetBufferCursor(context.cursorAfterOverride);
++    return true;
++}
+ 
+-    return false;
++return false;
+ } // namespace Zep
+ 
+ void ZepMode::ResetCommand()

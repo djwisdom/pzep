@@ -1,0 +1,239 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\buffer.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\range_markers.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\glyph_iterator.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\commands.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\display.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\editor.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\filesystem.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\git.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\fold.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\raylib\display_raylib.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\indexer.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\keymap.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\line_widgets.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\mcommon\animation\timer.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\mcommon\string\stringutils.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\mcommon\file\path.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\mode.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\mode_search.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\mode_standard.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\mode_tree.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\mode_vim.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\mode_repl.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\mode_terminal.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\regress.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\scroller.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\splits.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\syntax.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\syntax_providers.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\syntax_rainbow_brackets.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\syntax_tree.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\syntax_markdown.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\tab_window.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\theme.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\window.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\commands_terminal.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\casse\github\pzep\src\terminal.cpp">
+      <Filter>Zep</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\buffer.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\range_markers.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\glyph_iterator.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\commands.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\display.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\editor.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\filesystem.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\indexer.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\keymap.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\line_widgets.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mcommon\animation\timer.h">
+      <Filter>Zep\common</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mcommon\file\cpptoml.h">
+      <Filter>Zep\common</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mcommon\file\path.h">
+      <Filter>Zep\common</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mcommon\logger.h">
+      <Filter>Zep\common</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mcommon\string\stringutils.h">
+      <Filter>Zep\common</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mcommon\threadutils.h">
+      <Filter>Zep\common</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mode.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mode_search.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mode_standard.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mode_tree.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mode_vim.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mode_repl.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\mode_terminal.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\regress.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\scroller.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\splits.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\syntax.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\syntax_providers.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\syntax_rainbow_brackets.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\syntax_tree.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\syntax_markdown.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\tab_window.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\theme.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\window.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\git.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\casse\github\pzep\include\zep\terminal.h">
+      <Filter>Zep\include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\casse\github\pzep\src\CMakeLists.txt">
+      <Filter>Zep</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Zep">
+      <UniqueIdentifier>{35B926AD-2DA0-3815-9949-8ABFC7206559}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Zep\common">
+      <UniqueIdentifier>{BF36053D-D3B6-3121-B21B-EE53BB4C0B95}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Zep\include">
+      <UniqueIdentifier>{38B10D50-0C53-3741-8569-13FD46C0E140}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

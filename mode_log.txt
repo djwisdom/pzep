@@ -1,0 +1,8 @@
+b2cd583f Fix Ex mode: Enter now executes :q, proper bracketed tokens for special keys, backspace updates display; fix copy-paste control char mapping
+f9fac632 Fix Ex mode Return not executing :q; Expand font glyphs to include Unicode blocks (Box Drawing, Greek, Cyrillic, Georgian, symbols); Fix backspace in Ex mode display update
+61644941 Fix Ctrl+V/C/X by mapping control chars to <C-x> tokens, remove :q hack, implement mouse drag selection with copy fallback
+639f2375 Implement clipboard integration: Copy (Ctrl+C), Cut (Ctrl+X), Paste (Ctrl+V/Shift+Insert) with Unicode support; fix display overdraw; bump version
+013fddf8 Fix display artifacts (overdraw), Unicode input conversion, dirty flag handling, save clear, window close protection; bump version to 0.5.16
+ca74a019 feat: implement REPL capability sandbox, QuickJS provider, and UpdateLineSpans performance optimization
+ef570cf6 feat: Add REPL/scripting integration with Lua, Duktape, and QuickJS
+f214ea8b Initial commit

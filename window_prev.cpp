@@ -300,6 +300,10 @@ void ZepWindow::Notify(std::shared_ptr<ZepMessage> payload)
         if (payload->button == ZepMouseButton::Left && m_textRegion->rect.Contains(m_mousePos) && m_mouseIterator.Valid())
         {
             SetBufferCursor(m_mouseIterator);
+            // Start mouse drag selection
+            m_mouseSelecting = true;
+            m_mouseSelStart = m_mouseIterator;
+            GetBuffer().SetSelection(GlyphRange(m_mouseSelStart, m_mouseSelStart));
         }
 
         if (m_minimapRegion->rect.Contains(m_mousePos))
@@ -324,54 +328,125 @@ void ZepWindow::Notify(std::shared_ptr<ZepMessage> payload)
             m_minimapScrollStart = m_textOffsetPx;
         }
     }
-    else if (payload->messageId == Msg::MouseUp)
+    else if (payload->messageId == Msg::MouseMove)
     {
-        m_minimapDragging = false;
-    }
-    else if (payload->messageId == Msg::MouseWheel)
-    {
-        if (m_minimapRegion->rect.Contains(m_mousePos))
-        {
-            if (m_textSizePx.y > 0)
-            {
-                float wheelDelta = 0.0f;
-                if (payload->str == "up")
-                    wheelDelta = -3.0f * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight();
-                else if (payload->str == "down")
-                    wheelDelta = 3.0f * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight();
+        m_mousePos = payload->pos;
 
-                m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), m_textOffsetPx + wheelDelta));
-                m_vScroller->vScrollPosition = m_textOffsetPx / m_textSizePx.y;
-                UpdateVisibleLineRange();
-                DisableToolTipTillMove();
-            }
+        // Update ongoing mouse selection
+        if (m_mouseSelecting && m_mouseIterator.Valid())
+        {
+            GetBuffer().SetSelection(GlyphRange(m_mouseSelStart, m_mouseIterator));
+            SetBufferCursor(m_mouseIterator);
         }
-        /* TBD: From PR #106: this does not work correctly: It scrolls the text off the page
-        * completely at the bottom
-        m_textOffsetPx = std::min(m_textSizePx.y, std::max(0.0f, m_textOffsetPx - 5 * stof(payload->str) * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight()));
-        UpdateVisibleLineRange();
-        DisableToolTipTillMove();
-        */
-    }
-    else if (payload->messageId == Msg::GoToMarker)
-    {
-        if (payload->spMarker)
-        {
-            auto markerRange = payload->spMarker->GetRange();
-            GlyphIterator targetLoc(m_pBuffer, markerRange.first);
 
-            // Center the cursor in the viewport
-            long targetLine = m_pBuffer->GetBufferLine(targetLoc);
-            m_textOffsetPx = (float)targetLine * m_defaultLineSize;
-            m_textOffsetPx -= m_textRegion->rect.Height() / 2.0f;
-            m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), m_textOffsetPx));
+        if (m_minimapDragging && m_textSizePx.y > 0)
+        {
+            float minimapHeight = m_minimapRegion->rect.Height();
+            float dragDelta = m_mousePos.y - m_minimapDragStart.y;
+            float scrollDelta = (dragDelta / minimapHeight) * m_textSizePx.y;
+            m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), m_minimapScrollStart + scrollDelta));
 
             m_vScroller->vScrollPosition = m_textOffsetPx / m_textSizePx.y;
-            SetBufferCursor(targetLoc);
             UpdateVisibleLineRange();
-            EnsureCursorVisible();
+            DisableToolTipTillMove();
+        }
+
+        if (!m_toolTips.empty())
+        {
+            if (ManhattanDistance(m_mouseHoverPos, payload->pos) > 4.0f)
+            {
+                timer_restart(m_toolTipTimer);
+                m_toolTips.clear();
+            }
+        }
+        else
+        {
+            timer_restart(m_toolTipTimer);
+            m_mouseHoverPos = payload->pos;
+
+            // Can now show tooltip again, due to mouse hover
+            m_tipDisabledTillMove = false;
         }
     }
+    else if (payload->messageId == Msg::MouseUp)
+    {
+        if (payload->button == ZepMouseButton::Left)
+        {
+            m_mouseSelecting = false;
+        }
+        m_minimapDragging = false;
+    }
+
+    if (m_minimapRegion->rect.Contains(m_mousePos))
+    {
+        if (m_textSizePx.y > 0)
+        {
+            float minimapHeight = m_minimapRegion->rect.Height();
+            float clickY = (m_mousePos.y - m_minimapRegion->rect.Top()) / minimapHeight;
+            float targetOffset = clickY * m_textSizePx.y - (m_textRegion->rect.Height() / 2.0f);
+            m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), targetOffset));
+
+            m_vScroller->vScrollPosition = m_textOffsetPx / m_textSizePx.y;
+            UpdateVisibleLineRange();
+            DisableToolTipTillMove();
+        }
+    }
+
+    if (payload->button == ZepMouseButton::Left && !m_minimapDragging && m_minimapRegion->rect.Contains(m_mousePos))
+    {
+        m_minimapDragging = true;
+        m_minimapDragStart = m_mousePos;
+        m_minimapScrollStart = m_textOffsetPx;
+    }
+}
+else if (payload->messageId == Msg::MouseUp)
+{
+    m_minimapDragging = false;
+}
+else if (payload->messageId == Msg::MouseWheel)
+{
+    if (m_minimapRegion->rect.Contains(m_mousePos))
+    {
+        if (m_textSizePx.y > 0)
+        {
+            float wheelDelta = 0.0f;
+            if (payload->str == "up")
+                wheelDelta = -3.0f * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight();
+            else if (payload->str == "down")
+                wheelDelta = 3.0f * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight();
+
+            m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), m_textOffsetPx + wheelDelta));
+            m_vScroller->vScrollPosition = m_textOffsetPx / m_textSizePx.y;
+            UpdateVisibleLineRange();
+            DisableToolTipTillMove();
+        }
+    }
+    /* TBD: From PR #106: this does not work correctly: It scrolls the text off the page
+    * completely at the bottom
+    m_textOffsetPx = std::min(m_textSizePx.y, std::max(0.0f, m_textOffsetPx - 5 * stof(payload->str) * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight()));
+    UpdateVisibleLineRange();
+    DisableToolTipTillMove();
+    */
+}
+else if (payload->messageId == Msg::GoToMarker)
+{
+    if (payload->spMarker)
+    {
+        auto markerRange = payload->spMarker->GetRange();
+        GlyphIterator targetLoc(m_pBuffer, markerRange.first);
+
+        // Center the cursor in the viewport
+        long targetLine = m_pBuffer->GetBufferLine(targetLoc);
+        m_textOffsetPx = (float)targetLine * m_defaultLineSize;
+        m_textOffsetPx -= m_textRegion->rect.Height() / 2.0f;
+        m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), m_textOffsetPx));
+
+        m_vScroller->vScrollPosition = m_textOffsetPx / m_textSizePx.y;
+        SetBufferCursor(targetLoc);
+        UpdateVisibleLineRange();
+        EnsureCursorVisible();
+    }
+}
 }
 
 void ZepWindow::SetDisplayRegion(const NRectf& region)
@@ -768,60 +843,16 @@ void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
         bufferPosYPx += fullLineHeight + lineWidgetHeight.y;
     }
 
-    // Fill viewport with lines to show tilde indicators beyond EOF.
-    // This also ensures at least one line exists in degenerate cases.
+    if (m_windowLines.empty())
     {
-        long maxDisplay = m_maxDisplayLines;
-        long current = (long)m_windowLines.size();
-        long needed = std::max(0L, maxDisplay - current);
-
-        auto topPadding = NVec2f(DPI_Y((float)GetEditor().GetConfig().lineMargins.x), DPI_Y((float)GetEditor().GetConfig().lineMargins.y));
-        auto& font = GetEditor().GetDisplay().GetFont(ZepTextType::Text);
-        float textHeight = font.GetPixelHeight();
-        float fullLineHeight = textHeight + topPadding.x + topPadding.y;
-
-        long startBufferLine = totalLines; // first buffer line number beyond EOF
-        float currentY = bufferPosYPx;
-
-        for (long i = 0; i < needed; ++i)
-        {
-            auto lineInfoPtr = std::make_unique<SpanInfo>();
-            SpanInfo* lineInfo = lineInfoPtr.get();
-            lineInfo->pFont = &font;
-            lineInfo->lineWidgetHeights = NVec2f(0.0f, 0.0f);
-            lineInfo->bufferLineNumber = startBufferLine + i;
-            lineInfo->spanLineIndex = spanLine + i;
-            lineInfo->lineByteRange.first = 0;
-            lineInfo->lineByteRange.second = 0;
-            lineInfo->yOffsetPx = currentY + i * fullLineHeight;
-            lineInfo->padding = topPadding;
-            lineInfo->lineTextSizePx = NVec2f(0.0f, textHeight);
-            lineInfo->isSplitContinuation = false;
-            m_windowLines.push_back(std::move(lineInfoPtr));
-        }
-
-        spanLine += needed;
-        bufferPosYPx += needed * fullLineHeight;
-
-        // Fallback: ensure at least one line if something went wrong (e.g., zero-sized viewport)
-        if (m_windowLines.empty())
-        {
-            auto lineInfoPtr = std::make_unique<SpanInfo>();
-            SpanInfo* lineInfo = lineInfoPtr.get();
-            lineInfo->pFont = &font;
-            lineInfo->lineWidgetHeights = NVec2f(0.0f, 0.0f);
-            lineInfo->bufferLineNumber = startBufferLine;
-            lineInfo->spanLineIndex = spanLine;
-            lineInfo->lineByteRange.first = 0;
-            lineInfo->lineByteRange.second = 0;
-            lineInfo->yOffsetPx = currentY;
-            lineInfo->padding = topPadding;
-            lineInfo->lineTextSizePx = NVec2f(0.0f, textHeight);
-            lineInfo->isSplitContinuation = false;
-            m_windowLines.push_back(std::move(lineInfoPtr));
-            spanLine++;
-            bufferPosYPx += fullLineHeight;
-        }
+        auto lineInfoPtr = std::make_unique<SpanInfo>();
+        SpanInfo* lineInfo = lineInfoPtr.get();
+        lineInfo->lineByteRange.first = 0;
+        lineInfo->lineByteRange.second = 0;
+        lineInfo->padding = NVec2f(0.0f);
+        lineInfo->lineTextSizePx = NVec2f(0.0f);
+        lineInfo->bufferLineNumber = 0;
+        m_windowLines.push_back(std::move(lineInfoPtr));
     }
 
     // Build code point offsets
@@ -1204,8 +1235,6 @@ void ZepWindow::DisplayLineNumbers()
     auto cursorCL = BufferToDisplay();
     auto& display = GetEditor().GetDisplay();
 
-    long totalLines = m_pBuffer->GetLineCount();
-
     if (m_numberRegion->rect.Width() > 0)
     {
         for (long windowLine = m_visibleLineIndices.x; windowLine < m_visibleLineIndices.y; windowLine++)
@@ -1220,24 +1249,14 @@ void ZepWindow::DisplayLineNumbers()
 
             auto mode = m_pBuffer->GetMode();
 
-            // Check if this line is beyond EOF
-            bool beyondEOF = (lineInfo.bufferLineNumber >= totalLines);
-
-            if (beyondEOF)
+            // In Vim mode show relative lines, unless in Ex mode (with hidden cursor)
+            if (mode->UsesRelativeLines() && mode->GetCursorType() != CursorType::None)
             {
-                strNum = "~";
+                strNum = std::to_string(std::abs(lineInfo.bufferLineNumber - cursorBufferLine));
             }
             else
             {
-                // In Vim mode show relative lines, unless in Ex mode (with hidden cursor)
-                if (mode->UsesRelativeLines() && mode->GetCursorType() != CursorType::None)
-                {
-                    strNum = std::to_string(std::abs(lineInfo.bufferLineNumber - cursorBufferLine));
-                }
-                else
-                {
-                    strNum = std::to_string(lineInfo.bufferLineNumber + 1);
-                }
+                strNum = std::to_string(lineInfo.bufferLineNumber + 1);
             }
 
             auto& numFont = display.GetFont(ZepTextType::UI);
@@ -1250,18 +1269,22 @@ void ZepWindow::DisplayLineNumbers()
                 digitCol = m_pBuffer->GetTheme().GetColor(ThemeColor::CursorNormal);
             }
 
-            // Numbers
-            display.SetClipRect(m_numberRegion->rect);
-            display.DrawChars(numFont,
-                NVec2f(m_numberRegion->rect.bottomRightPx.x - textSize.x,
-                    ToWindowY(lineCenter - numFont.GetPixelHeight() * .5f)),
-                digitCol,
-                (const uint8_t*)strNum.c_str(), (const uint8_t*)(strNum.c_str() + strNum.size()));
+            if (m_numberRegion->rect.Width() > 0)
+            {
+                // Numbers
+                display.SetClipRect(m_numberRegion->rect);
+                display.DrawChars(numFont,
+                    NVec2f(m_numberRegion->rect.bottomRightPx.x - textSize.x,
+                        ToWindowY(lineCenter - numFont.GetPixelHeight() * .5f)),
+                    digitCol,
+                    (const uint8_t*)strNum.c_str(), (const uint8_t*)(strNum.c_str() + strNum.size()));
+            }
 
             if (m_indicatorRegion->rect.Width() > 0)
             {
                 // Show any markers in the left indicator region
                 m_pBuffer->ForEachMarker(RangeMarkerType::Mark, Direction::Forward, GlyphIterator(m_pBuffer, lineInfo.lineByteRange.first), GlyphIterator(m_pBuffer, lineInfo.lineByteRange.second), [&](const std::shared_ptr<RangeMarker>& marker) {
+                    // >|< Text.  This is the bit between the arrows <-.  A vertical bar in the 'margin'
                     if (marker->displayType & RangeMarkerDisplayType::Indicator)
                     {
                         if (marker->IntersectsRange(lineInfo.lineByteRange))
@@ -2178,6 +2201,21 @@ void ZepWindow::Display()
                     break;
                 }
             }
+        }
+    }
+
+    // Draw ~ for empty lines (Vim-style)
+    for (long windowLine = m_visibleLineIndices.x; windowLine < m_visibleLineIndices.y; windowLine++)
+    {
+        auto& lineInfo = *m_windowLines[windowLine];
+        // Check if line is empty - lineByteRange.first == lineByteRange.second means empty
+        bool isEmpty = (lineInfo.lineByteRange.first == lineInfo.lineByteRange.second);
+        if (isEmpty)
+        {
+            auto& font = *lineInfo.pFont;
+            auto tildePos = NVec2f(m_textRegion->rect.Left() + m_xPad, ToWindowY(lineInfo.yOffsetPx + lineInfo.padding.x));
+            auto tildeColor = m_pBuffer->GetTheme().GetColor(ThemeColor::LineNumber);
+            display.DrawChars(font, tildePos, tildeColor, (const uint8_t*)"~", (const uint8_t*)"~" + 1);
         }
     }
 

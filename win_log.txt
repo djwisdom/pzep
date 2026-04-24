@@ -1,0 +1,5 @@
+495c9bfb Show ~ for empty lines beyond EOF in line numbers (Vim style)
+61644941 Fix Ctrl+V/C/X by mapping control chars to <C-x> tokens, remove :q hack, implement mouse drag selection with copy fallback
+ca74a019 feat: implement REPL capability sandbox, QuickJS provider, and UpdateLineSpans performance optimization
+f0da33ca Fix ESC key: prevent window close in Raylib display
+f214ea8b Initial commit

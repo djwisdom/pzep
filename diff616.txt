@@ -1,0 +1,179 @@
+commit 616449416626d8924e987f4899519e5a19964ecd
+Author: Dennis Esternon <djwisdom@gmail.com>
+Date:   Fri Apr 24 03:07:49 2026 +0800
+
+    Fix Ctrl+V/C/X by mapping control chars to <C-x> tokens, remove :q hack, implement mouse drag selection with copy fallback
+
+diff --git a/src/window.cpp b/src/window.cpp
+index d8121392..e91294e8 100644
+--- a/src/window.cpp
++++ b/src/window.cpp
+@@ -300,6 +300,10 @@ void ZepWindow::Notify(std::shared_ptr<ZepMessage> payload)
+         if (payload->button == ZepMouseButton::Left && m_textRegion->rect.Contains(m_mousePos) && m_mouseIterator.Valid())
+         {
+             SetBufferCursor(m_mouseIterator);
++            // Start mouse drag selection
++            m_mouseSelecting = true;
++            m_mouseSelStart = m_mouseIterator;
++            GetBuffer().SetSelection(GlyphRange(m_mouseSelStart, m_mouseSelStart));
+         }
+ 
+         if (m_minimapRegion->rect.Contains(m_mousePos))
+@@ -324,54 +328,125 @@ void ZepWindow::Notify(std::shared_ptr<ZepMessage> payload)
+             m_minimapScrollStart = m_textOffsetPx;
+         }
+     }
++    else if (payload->messageId == Msg::MouseMove)
++    {
++        m_mousePos = payload->pos;
++
++        // Update ongoing mouse selection
++        if (m_mouseSelecting && m_mouseIterator.Valid())
++        {
++            GetBuffer().SetSelection(GlyphRange(m_mouseSelStart, m_mouseIterator));
++            SetBufferCursor(m_mouseIterator);
++        }
++
++        if (m_minimapDragging && m_textSizePx.y > 0)
++        {
++            float minimapHeight = m_minimapRegion->rect.Height();
++            float dragDelta = m_mousePos.y - m_minimapDragStart.y;
++            float scrollDelta = (dragDelta / minimapHeight) * m_textSizePx.y;
++            m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), m_minimapScrollStart + scrollDelta));
++
++            m_vScroller->vScrollPosition = m_textOffsetPx / m_textSizePx.y;
++            UpdateVisibleLineRange();
++            DisableToolTipTillMove();
++        }
++
++        if (!m_toolTips.empty())
++        {
++            if (ManhattanDistance(m_mouseHoverPos, payload->pos) > 4.0f)
++            {
++                timer_restart(m_toolTipTimer);
++                m_toolTips.clear();
++            }
++        }
++        else
++        {
++            timer_restart(m_toolTipTimer);
++            m_mouseHoverPos = payload->pos;
++
++            // Can now show tooltip again, due to mouse hover
++            m_tipDisabledTillMove = false;
++        }
++    }
+     else if (payload->messageId == Msg::MouseUp)
+     {
++        if (payload->button == ZepMouseButton::Left)
++        {
++            m_mouseSelecting = false;
++        }
+         m_minimapDragging = false;
+     }
+-    else if (payload->messageId == Msg::MouseWheel)
++
++    if (m_minimapRegion->rect.Contains(m_mousePos))
+     {
+-        if (m_minimapRegion->rect.Contains(m_mousePos))
++        if (m_textSizePx.y > 0)
+         {
+-            if (m_textSizePx.y > 0)
+-            {
+-                float wheelDelta = 0.0f;
+-                if (payload->str == "up")
+-                    wheelDelta = -3.0f * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight();
+-                else if (payload->str == "down")
+-                    wheelDelta = 3.0f * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight();
++            float minimapHeight = m_minimapRegion->rect.Height();
++            float clickY = (m_mousePos.y - m_minimapRegion->rect.Top()) / minimapHeight;
++            float targetOffset = clickY * m_textSizePx.y - (m_textRegion->rect.Height() / 2.0f);
++            m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), targetOffset));
+ 
+-                m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), m_textOffsetPx + wheelDelta));
+-                m_vScroller->vScrollPosition = m_textOffsetPx / m_textSizePx.y;
+-                UpdateVisibleLineRange();
+-                DisableToolTipTillMove();
+-            }
++            m_vScroller->vScrollPosition = m_textOffsetPx / m_textSizePx.y;
++            UpdateVisibleLineRange();
++            DisableToolTipTillMove();
+         }
+-        /* TBD: From PR #106: this does not work correctly: It scrolls the text off the page
+-        * completely at the bottom
+-        m_textOffsetPx = std::min(m_textSizePx.y, std::max(0.0f, m_textOffsetPx - 5 * stof(payload->str) * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight()));
+-        UpdateVisibleLineRange();
+-        DisableToolTipTillMove();
+-        */
+     }
+-    else if (payload->messageId == Msg::GoToMarker)
++
++    if (payload->button == ZepMouseButton::Left && !m_minimapDragging && m_minimapRegion->rect.Contains(m_mousePos))
++    {
++        m_minimapDragging = true;
++        m_minimapDragStart = m_mousePos;
++        m_minimapScrollStart = m_textOffsetPx;
++    }
++}
++else if (payload->messageId == Msg::MouseUp)
++{
++    m_minimapDragging = false;
++}
++else if (payload->messageId == Msg::MouseWheel)
++{
++    if (m_minimapRegion->rect.Contains(m_mousePos))
+     {
+-        if (payload->spMarker)
++        if (m_textSizePx.y > 0)
+         {
+-            auto markerRange = payload->spMarker->GetRange();
+-            GlyphIterator targetLoc(m_pBuffer, markerRange.first);
+-
+-            // Center the cursor in the viewport
+-            long targetLine = m_pBuffer->GetBufferLine(targetLoc);
+-            m_textOffsetPx = (float)targetLine * m_defaultLineSize;
+-            m_textOffsetPx -= m_textRegion->rect.Height() / 2.0f;
+-            m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), m_textOffsetPx));
++            float wheelDelta = 0.0f;
++            if (payload->str == "up")
++                wheelDelta = -3.0f * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight();
++            else if (payload->str == "down")
++                wheelDelta = 3.0f * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight();
+ 
++            m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), m_textOffsetPx + wheelDelta));
+             m_vScroller->vScrollPosition = m_textOffsetPx / m_textSizePx.y;
+-            SetBufferCursor(targetLoc);
+             UpdateVisibleLineRange();
+-            EnsureCursorVisible();
++            DisableToolTipTillMove();
+         }
+     }
++    /* TBD: From PR #106: this does not work correctly: It scrolls the text off the page
++    * completely at the bottom
++    m_textOffsetPx = std::min(m_textSizePx.y, std::max(0.0f, m_textOffsetPx - 5 * stof(payload->str) * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight()));
++    UpdateVisibleLineRange();
++    DisableToolTipTillMove();
++    */
++}
++else if (payload->messageId == Msg::GoToMarker)
++{
++    if (payload->spMarker)
++    {
++        auto markerRange = payload->spMarker->GetRange();
++        GlyphIterator targetLoc(m_pBuffer, markerRange.first);
++
++        // Center the cursor in the viewport
++        long targetLine = m_pBuffer->GetBufferLine(targetLoc);
++        m_textOffsetPx = (float)targetLine * m_defaultLineSize;
++        m_textOffsetPx -= m_textRegion->rect.Height() / 2.0f;
++        m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), m_textOffsetPx));
++
++        m_vScroller->vScrollPosition = m_textOffsetPx / m_textSizePx.y;
++        SetBufferCursor(targetLoc);
++        UpdateVisibleLineRange();
++        EnsureCursorVisible();
++    }
++}
+ }
+ 
+ void ZepWindow::SetDisplayRegion(const NRectf& region)

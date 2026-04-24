@@ -1,0 +1,1 @@
+Get-Content window.cpp | ForEach-Object { $_ -replace "    ret.x = long\(m_windowLines\[m_windowLines.size\(\) - 1\]->lineCodePoints.size\(\) - 1\);", "    long lastLinePoints = long(m_windowLines[m_windowLines.size() - 1]->lineCodePoints.size());\n    ret.x = (lastLinePoints > 0) ? lastLinePoints - 1 : 0;" } | Set-Content window.cpp
