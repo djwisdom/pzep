@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <limits>
 #include <sstream>
 
 #include "zep/buffer.h"
@@ -768,8 +769,9 @@ void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
         bufferPosYPx += fullLineHeight + lineWidgetHeight.y;
     }
 
-    // Fill viewport with lines to show tilde indicators beyond EOF.
-    // This also ensures at least one line exists in degenerate cases.
+    // Fill viewport with filler lines to show '~' indicators beyond EOF.
+    // These lines are not part of the actual buffer; they extend the virtual height
+    // so the viewport can be filled and tilde indicators drawn in the line number column.
     {
         long maxDisplay = m_maxDisplayLines;
         long current = (long)m_windowLines.size();
@@ -783,6 +785,9 @@ void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
         long startBufferLine = totalLines; // first buffer line number beyond EOF
         float currentY = bufferPosYPx;
 
+        // Use a very large byte range for filler to preserve ordering for lower_bound on lineByteRange.second
+        const long FILLER_BYTE_RANGE = std::numeric_limits<long>::max();
+
         for (long i = 0; i < needed; ++i)
         {
             auto lineInfoPtr = std::make_unique<SpanInfo>();
@@ -791,8 +796,8 @@ void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
             lineInfo->lineWidgetHeights = NVec2f(0.0f, 0.0f);
             lineInfo->bufferLineNumber = startBufferLine + i;
             lineInfo->spanLineIndex = spanLine + i;
-            lineInfo->lineByteRange.first = 0;
-            lineInfo->lineByteRange.second = 0;
+            lineInfo->lineByteRange.first = FILLER_BYTE_RANGE;
+            lineInfo->lineByteRange.second = FILLER_BYTE_RANGE;
             lineInfo->yOffsetPx = currentY + i * fullLineHeight;
             lineInfo->padding = topPadding;
             lineInfo->lineTextSizePx = NVec2f(0.0f, textHeight);
@@ -803,7 +808,7 @@ void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
         spanLine += needed;
         bufferPosYPx += needed * fullLineHeight;
 
-        // Fallback: ensure at least one line if something went wrong (e.g., zero-sized viewport)
+        // Fallback: ensure at least one line exists for empty buffers or zero-sized viewport
         if (m_windowLines.empty())
         {
             auto lineInfoPtr = std::make_unique<SpanInfo>();
@@ -812,8 +817,8 @@ void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
             lineInfo->lineWidgetHeights = NVec2f(0.0f, 0.0f);
             lineInfo->bufferLineNumber = startBufferLine;
             lineInfo->spanLineIndex = spanLine;
-            lineInfo->lineByteRange.first = 0;
-            lineInfo->lineByteRange.second = 0;
+            lineInfo->lineByteRange.first = FILLER_BYTE_RANGE;
+            lineInfo->lineByteRange.second = FILLER_BYTE_RANGE;
             lineInfo->yOffsetPx = currentY;
             lineInfo->padding = topPadding;
             lineInfo->lineTextSizePx = NVec2f(0.0f, textHeight);
@@ -873,10 +878,31 @@ void ZepWindow::UpdateVisibleLineRange()
         m_visibleLineIndices.y = long(line);
     }
 
-    // This seems
     m_visibleLineIndices.y++;
 
-    m_textSizePx.y = m_windowLines[m_windowLines.size() - 1]->yOffsetPx + GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight() + DPI_Y(GetEditor().GetConfig().lineMargins.y) + DPI_Y(GetEditor().GetConfig().lineMargins.x);
+    // Compute the total content height based only on real buffer lines (exclude filler lines).
+    long totalLines = m_pBuffer->GetLineCount();
+    float contentHeight = 0.0f;
+    bool foundRealLine = false;
+    for (const auto& linePtr : m_windowLines)
+    {
+        if (linePtr->bufferLineNumber < totalLines)
+        {
+            contentHeight = linePtr->yOffsetPx + linePtr->FullLineHeightPx();
+            foundRealLine = true;
+        }
+        else
+        {
+            // Filler lines encountered; stop
+            break;
+        }
+    }
+    if (!foundRealLine && !m_windowLines.empty())
+    {
+        // Degenerate case (e.g., empty buffer). Use the last available line.
+        contentHeight = m_windowLines.back()->yOffsetPx + m_windowLines.back()->FullLineHeightPx();
+    }
+    m_textSizePx.y = contentHeight;
 
     UpdateScrollers();
 }

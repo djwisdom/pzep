@@ -2444,11 +2444,34 @@ bool ZepMode::HandleExCommand(std::string strCommand)
         {
             commandKey = commandKey.substr(0, spacePos);
         }
+
+        // Handle trailing '!' without preceding space (e.g., :q!)
+        bool hasBang = false;
+        if (!commandKey.empty() && commandKey.back() == '!')
+        {
+            hasBang = true;
+            commandKey.pop_back();
+        }
+
         auto pCommand = GetEditor().FindExCommand(commandKey);
         if (pCommand)
         {
             // Pass the full command string split into tokens (first token is the command itself)
             auto strTok = string_split(strCommand, " ");
+            // Adjust tokens if we stripped a trailing '!'
+            if (hasBang)
+            {
+                if (!strTok.empty())
+                {
+                    // Replace the first token with the command name (without '!')
+                    strTok[0] = commandKey;
+                }
+                else
+                {
+                    strTok.push_back(commandKey);
+                }
+                strTok.push_back("!");
+            }
             pCommand->Run(strTok);
         }
         else if (strCommand == ":reg")
