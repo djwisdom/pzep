@@ -2480,6 +2480,11 @@ NVec2i ZepWindow::BufferToDisplay(const GlyphIterator& loc)
         size_t line_number = std::distance(m_windowLines.begin(), itr);
         ret.y = long(line_number);
         ret.x = 0;
+        // Defensive: ensure non-negative
+        if (ret.y < 0)
+            ret.y = 0;
+        if (ret.x < 0)
+            ret.x = 0;
 
         for (auto& ch : (*itr)->lineCodePoints)
         {
