@@ -1,119 +1,159 @@
-# pZep - Vim-like Code Editor
+# pZep - Vim-like Code Editor with Interactive Tutorial & REPL
 
-A lightweight, stand alone code editor with full Vim keybindings.
+A lightweight, standalone code editor with full Vim keybindings, an interactive tutorial system (`:tutor`), and multi-language REPL integration.
 
-## Architecture
+## 🚀 Quick Start
 
-### Display Backends
+```bash
+# Build
+mkdir build && cd build
+cmake -G "Visual Studio 17 2022" -A x64 -DENABLE_LUA_REPL=ON -DENABLE_DUKTAPE_REPL=ON ..
+cmake --build . --config Release
 
-pZep supports multiple display backends through the `ZepDisplay` interface:
+# Run (Windows GUI)
+./Release/pzep-gui.exe [filename]
+```
 
-- **Raylib** (`src/raylib/`) - Graphics window (OpenGL/Desktop)
-- **FTXUI** (`src/ftxui/`) - Terminal UI (experimental)
-- **ImGui** (`src/imgui/`) - Dear ImGui integration
+**Keybindings:**
+- `i` — Enter insert mode
+- `ESC` — Return to normal mode
+- `:q` — Quit current window; `:q!` — Force quit
+- `:w` — Save buffer
+- `:tutor` — Launch interactive tutorial
+- `:lua` / `:duktape` / `:quickjs` — Open REPL buffer (if enabled)
+- `Ctrl+Q` — Quit application (with dirty buffer check)
 
-### Editor Structure (Four-Corner Layout)
+## 🎓 Interactive Tutorial (`:tutor`)
 
-The Zep editor uses a **region-based layout system**:
+The built-in tutorial guides you through pZep's core features with hands-on demos:
+
+1. **Basic Navigation & Modes** — Normal, Insert, Visual
+2. **Window Splits** — `:split` / `:vsplit`, navigating panes
+3. **Tab Management** — `:tabnew`, `gt` / `gT`
+4. **REPL Integration** — Try Lua, Duktape, or QuickJS inline
+5. **Buffers & Files** — Managing multiple files
+6. **Advanced Commands** — Search, replace, macros
+
+Each lesson opens a dedicated tutorial buffer with explanatory text and embedded demo commands. Press the suggested keys to try features live.
+
+## 🖥️ REPL Integration
+
+pZep supports multiple scripting language REPLs that run in dedicated editor buffers:
+
+| REPL | CMake Flag | Example Usage |
+|------|------------|---------------|
+| **Lua** | `-DENABLE_LUA_REPL=ON` | `:lua` → `1+1` → Enter → `2` |
+| **Duktape (JS)** | `-DENABLE_DUKTAPE_REPL=ON` | `:duktape` → `Math.sqrt(16)` → Enter |
+| **QuickJS** | `-DENABLE_QUICKJS_REPL=ON` | `:quickjs` → `const x = 42; x` |
+
+**REPL Keybindings (inside REPL buffer):**
+- `Enter` — Evaluate current line or selected expression
+- `Ctrl+Enter` — Evaluate outer expression
+- `Shift+Enter` — Evaluate and insert result
+
+## 🏗️ Architecture Overview
+
+### Core Components
+
+- **`ZepEditor`** — Main editor controller, manages tab windows, buffers, and global state
+- **`ZepTabWindow`** — Container for editor panes (splits) and file tabs
+- **`ZepWindow`** — Single editor pane with text area, line numbers, minimap, and scrollbars
+- **`ZepBuffer`** — Text buffer with undo/redo, syntax highlighting, and file I/O
+- **`ZepMode`** — Input modes (Normal, Insert, Visual, Command, Ex)
+- **`ZepDisplay`** — Rendering and input abstraction (Raylib backend)
+
+### Layout (Four-Corner Design)
 
 ```
 ┌─────────────────────────────────────────────┐
-│ Tab Region (top)                           │ ← File tabs (multiple files)
-├─────────────────────────────────────────┤
-│ Tab Content Region (center)                 │
-│ ┌───────┬──────────┬──────┬───────────┐  │
-│ │ Line  │ Indicator│ Text │ Scrollbar │  │
-│ │ nums │ (git)   │      │ /minimap │  │
-│ └───────┴──────────┴──────┴───────────┘  │
-├──────────────────────────────────────────┤
+│ Tab Region (top)                           │ ← File tabs
+├───────────────────────────────────────────┤
+│ Tab Content Region (center)                │
+│ ┌─────┬────┬──────────────┬───────────┐   │
+│ │Line │Git │     Text     │ Scrollbar/│   │
+│ │ nums│    │              │ Minimap   │   │
+│ └─────┴────┴──────────────┴───────────┘   │
+├───────────────────────────────────────────┤
 │ Command Region (bottom)                   │
-│ Vim | NORMAL | 100% | untitled | 0:0  │ ← Status bar
+│ Vim | NORMAL | 100% | file.txt | 12:5   │ ← Status bar
 └─────────────────────────────────────────────┘
 ```
 
-**Key Components:**
+### Vim Mode Reference
 
-- `ZepDisplay` - Display interface (rendering, input)
-- `ZepEditor` - Main editor controller
-- `ZepTabWindow` - Tab container (multiple files/panes)
-- `ZepWindow` - Editor window (text area, line numbers, scrollbar)
-- `ZepMode` - Input mode (Normal, Insert, Visual)
+| Mode | Key | Description |
+|------|-----|-------------|
+| **Normal** | `ESC` | Navigation, commands (`:w`, `:q`)
+| **Insert** | `i`, `a`, `o` | Text editing
+| **Visual** | `v` | Character-wise selection
+| **Command** | `:` | Ex commands and search (`/pattern`)
 
-### Vim Modes
+## 🔨 Building
 
-| Mode | Description |
-|------|-----------|
-| Normal | Default Navigation |
-| Insert | Text Editing |
-| Visual | Text Selection |
-| Command | Ex Commands (`:w`, `:q`) |
+### Windows (MSVC)
 
-### Building
+```cmd
+mkdir build && cd build
+cmake -G "Visual Studio 17 2022" -A x64 \
+  -DENABLE_LUA_REPL=ON \
+  -DENABLE_DUKTAPE_REPL=ON \
+  -DENABLE_QUICKJS_REPL=ON \
+  ..
+cmake --build . --config Release
+```
+
+The main library (`Zep.lib`) builds by default. The GUI app (`pzep-gui`) and REPL plugins are built as separate targets when their respective options are enabled.
+
+### Linux / macOS (GCC/Clang)
 
 ```bash
-# Build Zep library
 mkdir build && cd build
-cmake -G "Visual Studio 17 2022" -A x64 ..
-cmake --build . --config Release
-
-# Build pZep-GUI
-cd apps/pzep-gui
-mkdir build && cd build
-cmake ..
-cmake --build . --config Release
+cmake -DENABLE_LUA_REPL=ON -DENABLE_DUKTAPE_REPL=ON ..
+make -j$(nproc)
 ```
 
-### Running
+**Dependencies:** Lua, Duktape development headers (or use bundled sources).
 
-```
-./pzep_gui [filename]
-
-# Keybindings:
-i - Enter insert mode
-ESC - Return to normal mode
-:q - Quit
-:w - Save
-```
-
-## Repository Structure
+## 📁 Repository Structure
 
 ```
 pzep/
 ├── apps/
-│   └── pzep-gui/     # pZep-GUI application (Raylib)
-├── src/               # Zep library source
-│   ├── ftxui/         # FTXUI display
-│   ├── imgui/         # ImGui display
-│   └── raylib/        # Raylib display
-├── include/           # Zeppelin headers
-├── tests/            # Unit tests
-├── build/            # Build output
+│   └── pzep-gui/         # pZep-GUI application (Raylib)
+├── include/zep/          # Public headers
+│   ├── mode_tutorial.h   # Tutorial mode
+│   ├── commands_repl.h   # REPL command wrappers
+│   ├── repl_plugin.h     # Plugin ABI for external REPLs
+├── src/
+│   ├── mode_tutorial.cpp # Tutorial implementation
+│   ├── commands_repl.cpp # REPL command registration
+│   ├── mode_lua_repl.cpp # Lua REPL provider
+│   ├── mode_duktape_repl.cpp # Duktape REPL
+│   ├── mode_quickjs_repl.cpp # QuickJS REPL
+│   ├── repl_plugin_loader.cpp # Dynamic plugin loading
+│   ├── mode_vim.cpp      # Vim keybindings & ex commands
+│   ├── window.cpp        # 4-corner layout, line numbers, minimap
+│   └── ...               # Core editor (buffer, syntax, etc.)
+├── plugins/              # Plugin build configuration
+├── tests/                # Unit tests
 └── README.md
 ```
 
-## Key Files
+## ✨ Recent Features (v0.5.x)
 
-| File | Purpose |
-|------|--------|
-| `src/editor.cpp` | Main editor logic, layout |
-| `src/window.cpp` | Window rendering (4-corner layout) |
-| `src/mode_vim.cpp` | Vim mode implementation |
-| `src/terminal.cpp` | Terminal emulator |
-| `src/buffer.cpp` | Text buffer |
+- **`:tutor` command** — Guided interactive tutorial
+- **Multi-language REPLs** — Lua, Duktape (JavaScript), QuickJS
+- **Dynamic plugin system** — Load external REPL providers at runtime
+- **Vim-style tilde indicators** — `~` for lines beyond EOF in line numbers
+- **Filler line rendering** — Correct viewport filling and minimap alignment
+- **Ex command `!` support** — `:q!`, `:w!` work without space
+- **Windows GUI** — No console window, native Win32 subsystem
 
-## Dependencies
+## 🐛 Known Issues & Workarounds
 
-Build requires:
-- raylib (Windows) - `C:\vcpkg\installed\x64-windows`
-- Microsoft Visual Studio 2022
+- **Cursor line/column display** — May show `-1` in rare edge cases after certain edits. A defensive clamp ensures the UI remains usable. (Tracking issue: investigate stale `m_windowLines` after buffer modifications.)
+- **REPL plugin loading** — QuickJS plugin may require external library on Windows. Use bundled sources via CMake options.
 
-Runtime (auto-copied on build):
-- raylib.dll
-- glfw3.dll
-- freetype.dll
-- libpng16.dll
-- zlib1.dll
+## 📄 License
 
-## Credits
-
-Fork of Zep. Originally based on nzep (Notification Editor).
+Fork of Zep. Originally based on nzep (Notification Editor). See repository for full license details.
