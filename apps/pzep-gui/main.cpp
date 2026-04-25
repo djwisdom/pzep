@@ -14,6 +14,9 @@
 #include <string>
 #include <unordered_map>
 
+// Include raylib directly for direct drawing in welcome screen
+#include <raylib.h>
+
 using namespace Zep;
 
 // Forward declarations for version dialog functions
@@ -62,6 +65,57 @@ int GetModifiers()
         mod |= 4;
     return mod;
 }
+
+void DrawWelcomeScreen(ZepDisplay& display, ZepFont& font)
+{
+    // Use raylib directly for screen dimensions
+    int screenW = GetRenderWidth();
+    int screenH = GetRenderHeight();
+
+    // Semi-transparent dark overlay
+    Color overlay = { 0, 0, 0, 200 };
+    DrawRectangle(0, 0, screenW, screenH, overlay);
+
+    // Centered text lines
+    const char* title = "pZep - a VIM-like editor. 'nuff said.";
+    const char* version = "version 0.5.49";
+    const char* author = "by Dennis O. Esternon et al.";
+    const char* tagline = "pZep is open source and freely distributable";
+    const char* help1 = "type :q<Enter>       to exit";
+    const char* help2 = "type :version<Enter> for version info";
+
+    int fontSize = 24;
+    auto titleSize = MeasureTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), title, fontSize, 1.0f);
+    auto versionSize = MeasureTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), version, fontSize, 1.0f);
+    auto authorSize = MeasureTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), author, fontSize, 1.0f);
+    int smallSize = 20;
+    auto taglineSize = MeasureTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), tagline, smallSize, 1.0f);
+    auto help1Size = MeasureTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), help1, smallSize, 1.0f);
+
+    float centerX = screenW * 0.5f;
+    float startY = screenH * 0.35f;
+    float lineSpacing = fontSize * 1.6f;
+
+    float x;
+
+    x = centerX - titleSize.x * 0.5f;
+    DrawTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), title, { x, startY }, fontSize, 1.0f, WHITE);
+
+    x = centerX - versionSize.x * 0.5f;
+    DrawTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), version, { x, startY + lineSpacing }, fontSize, 1.0f, LIGHTGRAY);
+
+    x = centerX - authorSize.x * 0.5f;
+    DrawTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), author, { x, startY + lineSpacing * 2.0f }, fontSize, 1.0f, RAYWHITE);
+
+    x = centerX - taglineSize.x * 0.5f;
+    DrawTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), tagline, { x, startY + lineSpacing * 3.5f }, smallSize, 1.0f, YELLOW);
+
+    x = centerX - help1Size.x * 0.5f;
+    DrawTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), help1, { x, startY + lineSpacing * 5.0f }, smallSize, 1.0f, GREEN);
+    x = centerX - help1Size.x * 0.5f;
+    DrawTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), help2, { x, startY + lineSpacing * 5.8f }, smallSize, 1.0f, GREEN);
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -257,6 +311,25 @@ int main(int argc, char* argv[])
         }
 
         display.BeginFrame();
+
+        // Draw welcome overlay if enabled
+        if (editor.GetConfig().showWelcomeScreen)
+        {
+            // Get the default font for drawing
+            ZepFont& font = display.GetFont(ZepTextType::Text);
+            DrawWelcomeScreen(display, font);
+
+            // Dismiss on any keypress or mouse click
+            int ch = GetCharPressed();
+            int key = GetKeyPressed();
+            if (ch > 0 || key > 0 || IsMouseButtonDown(0) || IsMouseButtonDown(1) || IsMouseButtonDown(2))
+            {
+                editor.GetConfig().showWelcomeScreen = false;
+            }
+
+            display.EndFrame();
+            continue; // Skip normal editor rendering this frame
+        }
 
         // Handle Ctrl+Q to quit (alternative to :q)
         if (IsKeyPressed(KEY_Q) && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)))
