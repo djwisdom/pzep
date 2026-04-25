@@ -1139,13 +1139,36 @@ bool ZepMode::GetCommand(CommandContext& context)
     }
     else if (mappedCommand == id_MotionDown)
     {
-        GetCurrentWindow()->MoveCursorY(context.keymap.TotalCount(), movementLineEndLocation);
+        auto pWindow = GetCurrentWindow();
+        auto& buf = pWindow->GetBuffer();
+        GlyphIterator cursor = pWindow->GetBufferCursor();
+        long curLine = buf.GetBufferLine(cursor);
+        long curCol = buf.GetBufferColumn(cursor);
+        long count = context.keymap.TotalCount();
+        long totalLines = buf.GetLineCount();
+        long newLine = std::min(curLine + count, totalLines - 1);
+        const auto& lineEnds = buf.GetLineEnds();
+        ByteIndex newLineStart = (newLine == 0) ? 0 : lineEnds[newLine - 1];
+        GlyphIterator newItr(&buf, newLineStart);
+        newItr = newItr.MoveClamped(curCol, LineLocation::LineLastNonCR);
+        pWindow->SetBufferCursor(newItr);
         context.commandResult.flags |= CommandResultFlags::HandledCount;
         return true;
     }
     else if (mappedCommand == id_MotionUp)
     {
-        GetCurrentWindow()->MoveCursorY(-context.keymap.TotalCount(), movementLineEndLocation);
+        auto pWindow = GetCurrentWindow();
+        auto& buf = pWindow->GetBuffer();
+        GlyphIterator cursor = pWindow->GetBufferCursor();
+        long curLine = buf.GetBufferLine(cursor);
+        long curCol = buf.GetBufferColumn(cursor);
+        long count = context.keymap.TotalCount();
+        long newLine = std::max(curLine - count, 0L);
+        const auto& lineEnds = buf.GetLineEnds();
+        ByteIndex newLineStart = (newLine == 0) ? 0 : lineEnds[newLine - 1];
+        GlyphIterator newItr(&buf, newLineStart);
+        newItr = newItr.MoveClamped(curCol, LineLocation::LineLastNonCR);
+        pWindow->SetBufferCursor(newItr);
         context.commandResult.flags |= CommandResultFlags::HandledCount;
         return true;
     }
