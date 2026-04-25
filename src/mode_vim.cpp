@@ -1552,7 +1552,7 @@ private:
     bool IsRelativeNumberEnabled() const
     {
         auto pMode = GetEditor().GetGlobalMode();
-        return pMode && strcmp(pMode->Name(), "Vim") == 0
+        return pMode && strcmp(pMode->Name(), "pZep") == 0
             ? static_cast<ZepMode_Vim*>(pMode)->UsesRelativeLines()
             : false;
     }
@@ -1587,7 +1587,7 @@ private:
     void SetRelativeNumber(bool enable)
     {
         auto pMode = GetEditor().GetGlobalMode();
-        if (pMode && strcmp(pMode->Name(), "Vim") == 0)
+        if (pMode && strcmp(pMode->Name(), "pZep") == 0)
         {
             static_cast<ZepMode_Vim*>(pMode)->SetUseRelativeLineNumbers(enable);
         }

@@ -307,7 +307,7 @@ void ZepEditor::LoadConfig(std::shared_ptr<cpptoml::table> spConfig)
 
         // Apply relativeNumber to vim mode if active
         auto pMode = GetGlobalMode();
-        if (pMode && strcmp(pMode->Name(), "Vim") == 0)
+        if (pMode && strcmp(pMode->Name(), "pZep") == 0)
         {
             static_cast<ZepMode_Vim*>(pMode)->SetUseRelativeLineNumbers(m_config.relativeNumber);
         }
@@ -414,7 +414,7 @@ void ZepEditor::ApplyPZepRCOption(const std::string& opt)
     {
         m_config.relativeNumber = true;
         auto pMode = GetGlobalMode();
-        if (pMode && strcmp(pMode->Name(), "Vim") == 0)
+        if (pMode && strcmp(pMode->Name(), "pZep") == 0)
         {
             static_cast<ZepMode_Vim*>(pMode)->SetUseRelativeLineNumbers(true);
         }
@@ -423,7 +423,7 @@ void ZepEditor::ApplyPZepRCOption(const std::string& opt)
     {
         m_config.relativeNumber = false;
         auto pMode = GetGlobalMode();
-        if (pMode && strcmp(pMode->Name(), "Vim") == 0)
+        if (pMode && strcmp(pMode->Name(), "pZep") == 0)
         {
             static_cast<ZepMode_Vim*>(pMode)->SetUseRelativeLineNumbers(false);
         }
