@@ -474,6 +474,16 @@ void ZepEditor::ApplyPZepRCOption(const std::string& opt)
             buf->SetFileFlags(FileFlags::InsertTabs, true);
         }
     }
+    else if (opt == "minimap")
+    {
+        m_config.showMinimap = true;
+        GetDisplay().SetLayoutDirty(true);
+    }
+    else if (opt == "nominimap")
+    {
+        m_config.showMinimap = false;
+        GetDisplay().SetLayoutDirty(true);
+    }
     else if (opt.find('=') != std::string::npos)
     {
         size_t pos = opt.find('=');
