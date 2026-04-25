@@ -766,7 +766,10 @@ void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
             lineInfo->lineWidgetHeights = NVec2f(0.0f, 0.0f);
             lineInfo->bufferLineNumber = bufferLine;
             lineInfo->spanLineIndex = spanLine;
-            lineInfo->lineByteRange = ByteRange(0, 0);
+            // Get actual line byte range for correct cursor positioning
+            ByteRange lineRange;
+            m_pBuffer->GetLineOffsets(bufferLine, lineRange);
+            lineInfo->lineByteRange = lineRange;
             lineInfo->yOffsetPx = bufferPosYPx;
             lineInfo->padding = topPadding;
             lineInfo->lineTextSizePx = NVec2f(0.0f, textHeight);
@@ -1023,6 +1026,10 @@ void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
     // Build code point offsets
     for (auto& line : m_windowLines)
     {
+        // Placeholder lines (e.g., closed folds) have no editable text; skip code point generation
+        if (line->isFoldPlaceholder)
+            continue;
+
         auto ch = line->lineByteRange.first;
 
         line->lineCodePoints.clear();
