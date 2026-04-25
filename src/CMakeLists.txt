@@ -78,12 +78,13 @@ ${ZEP_ROOT}/src/syntax_markdown.cpp
 ${ZEP_ROOT}/src/tab_window.cpp
 ${ZEP_ROOT}/src/theme.cpp
 ${ZEP_ROOT}/src/window.cpp
-${ZEP_ROOT}/src/commands_tutor.cpp
-${ZEP_ROOT}/src/commands_repl.cpp
-${ZEP_ROOT}/src/repl_plugin_loader.cpp
-${ZEP_ROOT}/src/commands_terminal.cpp
-${ZEP_ROOT}/src/terminal.cpp
-)
+ ${ZEP_ROOT}/src/commands_tutor.cpp
+ ${ZEP_ROOT}/src/commands_repl.cpp
+ ${ZEP_ROOT}/src/repl_plugin_loader.cpp
+ ${ZEP_ROOT}/src/commands_terminal.cpp
+ ${ZEP_ROOT}/src/commands_font.cpp
+ ${ZEP_ROOT}/src/terminal.cpp
+ )
 
 # Conditionally include REPL providers based on CMake options
 # If BUILD_REPL_PLUGINS is ON, providers are built as separate plugins and excluded from static library
@@ -107,8 +108,13 @@ LIST(APPEND SRC_INCLUDE ${ZEP_ROOT}/src ${ZEP_ROOT}/src/mcommon)
  add_library(Zep STATIC ${SOURCES})
  add_library(Zep::Zep ALIAS Zep)
 
- # Link raylib (display backend) - target provided by top-level CMake
- target_link_libraries(Zep PRIVATE raylib)
+  # Link raylib (display backend) - target provided by top-level CMake
+  target_link_libraries(Zep PRIVATE raylib)
+
+  # Link Windows system libraries for font enumeration and registry access
+  if(WIN32)
+      target_link_libraries(Zep PRIVATE gdi32 advapi32)
+  endif()
 
  # Ensure architecture macro is defined for Windows headers
  if(MSVC)

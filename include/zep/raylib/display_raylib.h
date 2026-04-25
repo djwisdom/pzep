@@ -48,9 +48,19 @@ public:
     virtual void SetClipRect(const NRectf& rc) override;
     virtual ZepFont& GetFont(ZepTextType type) override;
 
+    // Font enumeration and management
+    std::vector<std::string> GetAvailableMonospaceFonts() const override;
+    bool SetFontByName(const std::string& fontName) override;
+    std::string GetCurrentFontName() const override;
+
     // Clipboard
     std::string GetClipboardText() const override;
     void SetClipboardText(const std::string& text) override;
+
+    // Font management
+    std::vector<std::string> GetAvailableMonospaceFonts() const override;
+    bool SetFontByName(const std::string& fontName) override;
+    std::string GetCurrentFontName() const override;
 
     // Raylib-specific methods (not overrides)
     bool ShouldClose() const;
@@ -83,6 +93,14 @@ private:
     bool m_clipEnabled;
     int m_lastWindowedWidth = 1024;
     int m_lastWindowedHeight = 768;
+
+    // Font management
+    std::vector<std::string> m_monospaceFonts;
+    std::unordered_map<std::string, std::string> m_fontPathMap;
+    std::string m_currentFontName;
+    std::vector<int> m_fontCodepoints;
+
+    void EnumerateMonospaceFonts();
 };
 
 } // namespace Zep

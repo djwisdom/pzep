@@ -97,6 +97,20 @@ public:
 
     float GetDefaultTextSize() const;
 
+    // Font management
+    virtual std::vector<std::string> GetAvailableMonospaceFonts() const
+    {
+        return {};
+    }
+    virtual bool SetFontByName(const std::string& fontName)
+    {
+        return false;
+    }
+    virtual std::string GetCurrentFontName() const
+    {
+        return "";
+    }
+
     // Clipboard support (default no-op)
     virtual std::string GetClipboardText() const
     {

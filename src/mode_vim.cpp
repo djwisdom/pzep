@@ -3,6 +3,7 @@
 #include <sstream>
 
 #include "zep/buffer.h"
+#include "zep/commands_font.h"
 #include "zep/commands_terminal.h"
 #include "zep/commands_tutor.h"
 #include "zep/editor.h"
@@ -1396,6 +1397,7 @@ private:
         str << "    tabstop: " << GetEditor().GetConfig().tabStop << "\n";
         str << "  shiftwidth: " << GetEditor().GetConfig().shiftWidth << "\n";
         str << "    minimap: " << (GetEditor().GetConfig().showMinimap ? "on" : "off") << "\n";
+        str << "       font: " << GetEditor().GetDisplay().GetCurrentFontName() << "\n";
 
         GetEditor().SetCommandText(str.str());
     }
@@ -1439,6 +1441,10 @@ private:
         else if (opt == "minimap")
         {
             str << (GetEditor().GetConfig().showMinimap ? "minimap" : "nominimap");
+        }
+        else if (opt == "font")
+        {
+            str << "font=" << GetEditor().GetDisplay().GetCurrentFontName();
         }
         else
         {
@@ -1519,6 +1525,14 @@ private:
             else if (name == "shiftwidth")
             {
                 SetShiftWidth(value);
+            }
+            else if (name == "font")
+            {
+                bool success = GetEditor().GetDisplay().SetFontByName(value);
+                if (!success)
+                {
+                    GetEditor().SetCommandText("Failed to set font: " + value);
+                }
             }
             else
             {
@@ -1713,6 +1727,7 @@ void RegisterVimExCommands(ZepEditor& editor)
     editor.RegisterExCommand(std::make_shared<ZepExCommand_Set>(editor));
     editor.RegisterExCommand(std::make_shared<ZepExCommand_Tutor>(editor));
     editor.RegisterExCommand(std::make_shared<ZepExCommand_Version>(editor));
+    editor.RegisterExCommand(std::make_shared<ZepExCommand_GetFonts>(editor));
 
     // Git commands
     if (auto spGit = editor.GetGit())
@@ -1770,6 +1785,65 @@ bool ZepMode_Vim::GetCommand(CommandContext& context)
     }
 
     return ZepMode::GetCommand(context);
+}
+
+void ZepMode_Vim::HandleExTabCompletion()
+{
+    std::string cmd = m_currentCommand;
+    const std::string prefix1 = ":set font ";
+    const std::string prefix2 = ":set font=";
+    size_t pos = std::string::npos;
+    std::string after;
+    if (cmd.compare(0, prefix1.size(), prefix1) == 0)
+    {
+        pos = prefix1.size();
+        after = cmd.substr(pos);
+    }
+    else if (cmd.compare(0, prefix2.size(), prefix2) == 0)
+    {
+        pos = prefix2.size();
+        after = cmd.substr(pos);
+    }
+    else
+    {
+        return;
+    }
+
+    auto pDisplay = &GetEditor().GetDisplay();
+    auto fonts = pDisplay->GetAvailableMonospaceFonts();
+    std::vector<std::string> matches;
+    for (auto& f : fonts)
+    {
+        if (f.find(after) == 0)
+        {
+            matches.push_back(f);
+        }
+    }
+
+    if (matches.empty())
+    {
+        GetEditor().SetCommandText("No font matches");
+        return;
+    }
+
+    if (matches.size() == 1)
+    {
+        std::string newCmd = ":set font ";
+        // preserve equals if used
+        if (cmd[pos - 1] == '=')
+            newCmd += "=";
+        newCmd += matches[0];
+        m_currentCommand = newCmd;
+        GetEditor().SetCommandText(newCmd);
+        return;
+    }
+
+    // Multiple matches: show them
+    std::ostringstream str;
+    str << "Matches:";
+    for (auto& m : matches)
+        str << " " << m;
+    GetEditor().SetCommandText(str.str());
 }
 
 bool ZepMode_Vim::IsValidRegister(char reg) const

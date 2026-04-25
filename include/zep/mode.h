@@ -154,7 +154,7 @@ public:
     ZepMode(ZepEditor& editor);
     virtual ~ZepMode();
 
-    virtual void Init(){};
+    virtual void Init() {};
     virtual void AddKeyPress(uint32_t key, uint32_t modifierKeys = ModifierKey::None);
     virtual const char* Name() const = 0;
     virtual void Begin(ZepWindow* pWindow);
@@ -171,7 +171,7 @@ public:
     }
 
     // About to display this window, which is associated with this mode
-    virtual void PreDisplay(ZepWindow&){};
+    virtual void PreDisplay(ZepWindow&) {};
 
     // Called when we begin editing in this mode
     virtual void Undo();
@@ -217,6 +217,7 @@ protected:
 
     virtual void ClampCursorForMode();
     virtual bool HandleExCommand(std::string strCommand);
+    virtual void HandleExTabCompletion() {}
     virtual std::string ConvertInputToMapString(uint32_t key, uint32_t modifierKeys);
 
     virtual bool HandleIgnoredInput(CommandContext&)

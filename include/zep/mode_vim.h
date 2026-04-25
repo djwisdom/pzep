@@ -45,6 +45,7 @@ public:
     }
     virtual void PreDisplay(ZepWindow& win) override;
     virtual void AddKeyPress(uint32_t key, uint32_t modifierKeys = ModifierKey::None) override;
+    virtual void HandleExTabCompletion() override;
     virtual bool GetCommand(CommandContext& context) override;
     virtual void SetupKeyMaps();
     virtual void AddOverStrikeMaps();

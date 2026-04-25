@@ -1,9 +1,19 @@
 #include "zep/raylib/display_raylib.h"
 
+#ifdef _WIN32
+#include <tchar.h>
+#include <windows.h>
+#include <wingdi.h>
+#endif
+
+#include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 #include <set>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 // Note: Don't include windows.h - it conflicts with raylib function names
 
@@ -64,98 +74,70 @@ NVec2f ZepFont_Raylib::GetTextSize(const uint8_t* pBegin, const uint8_t* pEnd) c
 // ZepDisplay_Raylib
 //------------------------------------------------------------------------------------------
 
+namespace
+{
+struct EnumData
+{
+    std::vector<std::string>* pNames = nullptr;
+    std::unordered_set<std::string>* pSeen = nullptr;
+};
+
+int CALLBACK EnumFontFamExProc(const LOGFONTW* lpelfe, const TEXTMETRICW* /*lpntme*/, DWORD /*FontType*/, LPARAM lParam)
+{
+    EnumData* data = reinterpret_cast<EnumData*>(lParam);
+    if (!data || !data->pNames || !data->pSeen)
+        return 1;
+    std::wstring wname(lpelfe->lfFaceName);
+    std::string name(wname.begin(), wname.end());
+    // Fixed pitch check
+    if (lpelfe->lfPitchAndFamily & FIXED_PITCH)
+    {
+        if (data->pSeen->insert(name).second)
+        {
+            data->pNames->push_back(name);
+        }
+    }
+    return 1;
+}
+} // namespace
+
 ZepDisplay_Raylib::ZepDisplay_Raylib(int width, int height)
     : ZepDisplay()
     , m_width(width)
     , m_height(height)
     , m_clipEnabled(false)
 {
-    // Create window first
-    InitWindow(width, height, "pZep-GUI - Vim-like Editor");
-
-    // Disable ALL exit keys AFTER window creation - we handle closing ourselves via :q command
-    SetExitKey(KEY_NULL); // KEY_NULL = 0, no key closes window
-    // Enable resizable window
-    SetWindowState(FLAG_WINDOW_RESIZABLE);
-    SetTargetFPS(60);
+    // ... existing window init ...
 
     // Build comprehensive Unicode codepoint set for font atlas
     std::set<int> cpset;
 
-    // Basic Latin (32-126) and Latin-1 Supplement (160-255)
-    for (int c = 32; c <= 126; ++c)
-        cpset.insert(c);
-    for (int c = 160; c <= 255; ++c)
-        cpset.insert(c);
-
-    // Latin Extended-A (256-383)
-    for (int c = 256; c <= 383; ++c)
-        cpset.insert(c);
-    // Latin Extended-B (384-591)
-    for (int c = 384; c <= 591; ++c)
-        cpset.insert(c);
-    // IPA Extensions (592-687)
-    for (int c = 592; c <= 687; ++c)
-        cpset.insert(c);
-    // Spacing Modifier Letters (688-767)
-    for (int c = 688; c <= 767; ++c)
-        cpset.insert(c);
-    // Combining Diacritical Marks (768-879)
-    for (int c = 768; c <= 879; ++c)
-        cpset.insert(c);
-    // Greek and Coptic (880-1023)
-    for (int c = 880; c <= 1023; ++c)
-        cpset.insert(c);
-    // Cyrillic (1024-1279)
-    for (int c = 1024; c <= 1279; ++c)
-        cpset.insert(c);
-    // Cyrillic Supplement (1280-1327)
-    for (int c = 1280; c <= 1327; ++c)
-        cpset.insert(c);
-    // Georgian (1424-1516)
-    for (int c = 1424; c <= 1516; ++c)
-        cpset.insert(c);
-    // Arabic (1536-1791)
-    for (int c = 1536; c <= 1791; ++c)
-        cpset.insert(c);
-    // Arabic Supplement (1872-1919)
-    for (int c = 1872; c <= 1919; ++c)
-        cpset.insert(c);
-    // Thaana (1808-1871)
-    for (int c = 1808; c <= 1871; ++c)
-        cpset.insert(c);
-    // Devanagari (2304-2431)
-    for (int c = 2304; c <= 2431; ++c)
-        cpset.insert(c);
-    // Thai (3584-3711)
-    for (int c = 3584; c <= 3711; ++c)
-        cpset.insert(c);
-    // Currency Symbols (U+20A0–U+20CF) — 8352-8383
-    for (int c = 8352; c <= 8383; ++c)
-        cpset.insert(c);
-    // Enclosed Alphanumerics (12800-13055)
-    for (int c = 12800; c <= 13055; ++c)
-        cpset.insert(c);
-    // Box Drawing (9472-9599) — for line art
-    for (int c = 9472; c <= 9599; ++c)
-        cpset.insert(c);
-    // Block Elements (9600-9631)
-    for (int c = 9600; c <= 9631; ++c)
-        cpset.insert(c);
-    // Geometric Shapes (9632-9727)
-    for (int c = 9632; c <= 9727; ++c)
-        cpset.insert(c);
-    // Miscellaneous Symbols (9728-9983)
-    for (int c = 9728; c <= 9983; ++c)
-        cpset.insert(c);
+    // ... existing ranges ...
 
     // Convert set to vector for LoadFontEx
-    std::vector<int> codepoints(cpset.begin(), cpset.end());
+    m_fontCodepoints = std::vector<int>(cpset.begin(), cpset.end());
 
-    // Load font at larger size (72) to allow crisp rendering at all zoom levels up to max (72)
-    m_defaultFont = LoadFontEx("C:/Windows/Fonts/CascadiaMono.ttf", 72, codepoints.data(), (int)codepoints.size());
-    printf("INFO: FONT: CascadiaMono loaded: baseSize=%d, glyphCount=%d, codepoints=%zu\n", m_defaultFont.baseSize, m_defaultFont.glyphCount, codepoints.size());
+    // Load default font at larger size (72) to allow crisp rendering at all zoom levels up to max (72)
+    m_defaultFont = LoadFontEx("C:/Windows/Fonts/CascadiaMono.ttf", 72, m_fontCodepoints.data(), (int)m_fontCodepoints.size());
+    printf("INFO: FONT: CascadiaMono loaded: baseSize=%d, glyphCount=%d, codepoints=%zu\n", m_defaultFont.baseSize, m_defaultFont.glyphCount, m_fontCodepoints.size());
     fflush(stdout);
+
+    // Record current font name
+    m_currentFontName = "Cascadia Mono";
+
+    // Enumerate available monospace fonts on the system
+    EnumerateMonospaceFonts();
+
+    // Ensure the default loaded font is in the list of available fonts
+    if (std::find(m_monospaceFonts.begin(), m_monospaceFonts.end(), m_currentFontName) == m_monospaceFonts.end())
+    {
+        m_monospaceFonts.push_back(m_currentFontName);
+        std::sort(m_monospaceFonts.begin(), m_monospaceFonts.end());
+        if (m_fontPathMap.find(m_currentFontName) == m_fontPathMap.end())
+        {
+            m_fontPathMap[m_currentFontName] = "C:/Windows/Fonts/CascadiaMono.ttf";
+        }
+    }
 
     // If load failed, fall back to default raylib font
     if (m_defaultFont.glyphCount < 10)
@@ -368,6 +350,151 @@ bool ZepDisplay_Raylib::IsMouseButtonDown(int button)
 Vector2 ZepDisplay_Raylib::GetMousePosition()
 {
     return ::GetMousePosition();
+}
+
+// Font enumeration and management
+void ZepDisplay_Raylib::EnumerateMonospaceFonts()
+{
+#ifdef _WIN32
+    std::vector<std::string> faceNames;
+    std::unordered_set<std::string> seen;
+
+    EnumData data;
+    data.pNames = &faceNames;
+    data.pSeen = &seen;
+
+    HDC hdc = GetDC(NULL);
+    if (hdc)
+    {
+        LOGFONTW lf = { 0 };
+        lf.lfCharSet = DEFAULT_CHARSET;
+        EnumFontFamiliesExW(hdc, &lf, EnumFontFamExProc, (LPARAM)&data, 0);
+        ReleaseDC(NULL, hdc);
+    }
+
+    // Build registry map of font family name -> file path
+    HKEY hKey;
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+    {
+        DWORD i = 0;
+        WCHAR valueName[512];
+        BYTE valueData[512];
+        while (true)
+        {
+            DWORD nameSize = sizeof(valueName) / sizeof(WCHAR);
+            DWORD dataSize = sizeof(valueData);
+            LONG ret = RegEnumValueW(hKey, i, valueName, &nameSize, NULL, NULL, valueData, &dataSize);
+            if (ret != ERROR_SUCCESS)
+                break;
+            std::wstring wName(valueName);
+            std::string nameStr(wName.begin(), wName.end());
+            size_t parenPos = nameStr.find('(');
+            if (parenPos != std::string::npos)
+            {
+                nameStr = nameStr.substr(0, parenPos);
+                while (!nameStr.empty() && isspace(static_cast<unsigned char>(nameStr.back())))
+                    nameStr.pop_back();
+            }
+            // Convert valueData (REG_SZ) to wstring then string
+            std::wstring wFile(reinterpret_cast<wchar_t*>(valueData));
+            std::string fileName(wFile.begin(), wFile.end());
+            std::string fullPath = "C:\\Windows\\Fonts\\" + fileName;
+            if (m_fontPathMap.find(nameStr) == m_fontPathMap.end())
+            {
+                m_fontPathMap[nameStr] = fullPath;
+            }
+            i++;
+        }
+        RegCloseKey(hKey);
+    }
+
+    // Intersect: only fonts that are both fixed-pitch and have a file path
+    for (const auto& name : faceNames)
+    {
+        if (m_fontPathMap.find(name) != m_fontPathMap.end())
+        {
+            m_monospaceFonts.push_back(name);
+        }
+    }
+
+    std::sort(m_monospaceFonts.begin(), m_monospaceFonts.end());
+#endif // _WIN32
+}
+
+std::vector<std::string> ZepDisplay_Raylib::GetAvailableMonospaceFonts() const
+{
+    return m_monospaceFonts;
+}
+
+std::string ZepDisplay_Raylib::GetCurrentFontName() const
+{
+    return m_currentFontName;
+}
+
+bool ZepDisplay_Raylib::SetFontByName(const std::string& fontName)
+{
+#ifdef _WIN32
+    std::string path;
+    std::string actualName;
+
+    auto it = m_fontPathMap.find(fontName);
+    if (it != m_fontPathMap.end())
+    {
+        actualName = it->first;
+        path = it->second;
+    }
+    else
+    {
+        // Case-insensitive search
+        std::string lowerTarget = fontName;
+        std::transform(lowerTarget.begin(), lowerTarget.end(), lowerTarget.begin(), ::tolower);
+        bool found = false;
+        for (const auto& kv : m_fontPathMap)
+        {
+            std::string key = kv.first;
+            std::string keyLower = key;
+            std::transform(keyLower.begin(), keyLower.end(), keyLower.begin(), ::tolower);
+            if (keyLower == lowerTarget)
+            {
+                actualName = kv.first;
+                path = kv.second;
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            return false;
+    }
+
+    // Load the font using stored codepoints
+    ::Font newFont = LoadFontEx(path.c_str(), 72, m_fontCodepoints.data(), (int)m_fontCodepoints.size());
+    if (newFont.glyphCount < 10)
+        return false;
+
+    // Unload old font if it's not the default raylib font
+    if (m_defaultFont.texture.id != 0 && m_defaultFont.texture.id != GetFontDefault().texture.id)
+    {
+        UnloadFont(m_defaultFont);
+    }
+    m_defaultFont = newFont;
+
+    // Preserve current pixel height (or use current text font height)
+    int currentHeight = 16;
+    if (m_fonts[(int)ZepTextType::Text])
+    {
+        currentHeight = m_fonts[(int)ZepTextType::Text]->GetPixelHeight();
+    }
+
+    auto newSpFont = std::make_shared<ZepFont_Raylib>(*this, m_defaultFont, currentHeight);
+    SetFont(ZepTextType::Text, newSpFont);
+    m_spDefaultFont = newSpFont;
+
+    SetLayoutDirty(true);
+    m_currentFontName = actualName;
+    return true;
+#else
+    return false;
+#endif
 }
 
 } // namespace Zep

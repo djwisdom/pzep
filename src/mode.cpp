@@ -401,6 +401,11 @@ void ZepMode::AddKeyPress(uint32_t key, uint32_t modifierKeys)
             }
             return;
         }
+        if (key == ExtKeys::TAB)
+        {
+            HandleExTabCompletion();
+            return;
+        }
     }
 
     // Get the new command by parsing out the keys
