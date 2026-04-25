@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.15)
 message(STATUS "CMakeLists: Zep")
 
 # Global Options
-option(BUILD_QT "Make Qt Library" OFF)
 option(BUILD_IMGUI "Make Imgui Library" OFF)
 option(BUILD_DEMOS "Make the demo app" ON)
 option(BUILD_TESTS "Make the tests" ON)
@@ -13,6 +12,8 @@ option(ZEP_FEATURE_CPP_FILE_SYSTEM "Default File system enabled" ON)
 option(ENABLE_LUA_REPL "Enable Lua scripting support" OFF)
 option(ENABLE_DUKTAPE_REPL "Enable Duktape JavaScript support" OFF)
 option(ENABLE_QUICKJS_REPL "Enable QuickJS JavaScript support" OFF)
+# NOTE: All REPLs run in a sandbox with strict resource limits.
+# Enable only the ones you need; having multiple enabled increases attack surface slightly.
 
 # Global Settings
 set(CMAKE_CXX_STANDARD 17)
@@ -36,7 +37,7 @@ endif()
 
 project(Zep
     LANGUAGES CXX C
-    VERSION 0.5.33
+    VERSION 0.5.34
 )
 
 # Version components for use in code

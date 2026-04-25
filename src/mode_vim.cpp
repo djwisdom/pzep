@@ -120,6 +120,9 @@ void ZepMode_Vim::Init()
 
     RegisterVimExCommands(GetEditor());
     RegisterTerminalCommands(GetEditor());
+
+    // Apply relative number setting from config
+    SetUseRelativeLineNumbers(GetEditor().GetConfig().relativeNumber);
 }
 
 void ZepMode_Vim::AddNavigationKeyMaps(bool allowInVisualMode)
@@ -1477,6 +1480,58 @@ private:
     }
 };
 
+class ZepExCommand_Version : public ZepExCommand
+{
+public:
+    ZepExCommand_Version(ZepEditor& editor)
+        : ZepExCommand(editor)
+    {
+    }
+
+    const char* ExCommandName() const override
+    {
+        return "version";
+    }
+
+    void Run(const std::vector<std::string>& args) override
+    {
+        std::ostringstream ss;
+        ss << "pZep - Vim-like editor " << ZEP_VERSION_MAJOR << "." << ZEP_VERSION_MINOR << "." << ZEP_VERSION_PATCH
+           << " (" << __DATE__ << ", compiled " << __TIME__ << ")\n";
+#ifdef _WIN64
+        ss << "\nMS-Windows 64-bit raylib version with plugin support";
+#else
+        ss << "\nPlatform raylib version with plugin support";
+#endif
+        ss << "\nCompiled by ";
+#ifdef _MSC_VER
+        ss << "MSVC " << _MSC_FULL_VER;
+#else
+        ss << "unknown";
+#endif
+        ss << "\n\nFeatures included (+) or not (-):";
+        ss << "\n+vim-mode";
+        ss << "\n+repl-support";
+        ss << "\n+syntax-highlighting";
+        ss << "\n+line-numbers";
+        ss << "\n+statusline";
+        ss << "\n+minimap";
+        ss << "\n+git-integration";
+        ss << "\n+plugin-support";
+        ss << "\n+raylib-display";
+        ss << "\n+multi-buffer";
+        ss << "\n\nsystem pzeprc file: \"$PZEP\\pzeprc\"";
+        ss << "\nuser pzeprc file: \"$PZEP\\_pzeprc\"";
+        ss << "\n\nCompilation: cmake";
+#ifdef _MSC_VER
+        ss << " MSVC " << _MSC_FULL_VER;
+#endif
+        ss << " CXXFLAGS: /DWIN32 /D_WINDOWS /GR /EHsc";
+        ss << "\nLinking: link /nologo /opt:ref /LTCG";
+        GetEditor().SetCommandText(ss.str());
+    }
+};
+
 void RegisterVimExCommands(ZepEditor& editor)
 {
     editor.RegisterExCommand(std::make_shared<ZepExCommand_Substitute>(editor));
@@ -1497,6 +1552,7 @@ void RegisterVimExCommands(ZepEditor& editor)
     editor.RegisterExCommand(std::make_shared<ZepExCommand_TabClose>(editor));
     editor.RegisterExCommand(std::make_shared<ZepExCommand_Set>(editor));
     editor.RegisterExCommand(std::make_shared<ZepExCommand_Tutor>(editor));
+    editor.RegisterExCommand(std::make_shared<ZepExCommand_Version>(editor));
 
     // Git commands
     if (auto spGit = editor.GetGit())

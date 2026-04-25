@@ -53,6 +53,16 @@ ZepWindow::ZepWindow(ZepTabWindow& window, ZepBuffer* buffer)
     , m_tabWindow(window)
     , m_pBuffer(buffer)
 {
+    // Initialize window flags based on editor configuration
+    auto& config = GetEditor().GetConfig();
+    m_windowFlags = WindowFlags::ShowIndicators;
+    if (config.showLineNumbers)
+        m_windowFlags |= WindowFlags::ShowLineNumbers;
+    if (config.wrap)
+        m_windowFlags |= WindowFlags::WrapText;
+    if (config.list)
+        m_windowFlags |= WindowFlags::ShowWhiteSpace;
+
     m_bufferRegion = std::make_shared<Region>();
     m_numberRegion = std::make_shared<Region>();
     m_indicatorRegion = std::make_shared<Region>();
@@ -179,7 +189,8 @@ void ZepWindow::UpdateAirline()
 
     auto cursor = BufferToDisplay();
     m_airline.leftBoxes.push_back(AirBox{ m_pBuffer->GetDisplayName(), FilterActiveColor(m_pBuffer->GetTheme().GetColor(ThemeColor::AirlineBackground)) });
-    m_airline.leftBoxes.push_back(AirBox{ std::to_string(cursor.x) + ":" + std::to_string(cursor.y), m_pBuffer->GetTheme().GetColor(ThemeColor::TabActive) });
+    // Display 1-based line:column (Vim style)
+    m_airline.leftBoxes.push_back(AirBox{ std::to_string(cursor.y + 1) + ":" + std::to_string(cursor.x + 1), m_pBuffer->GetTheme().GetColor(ThemeColor::TabActive) });
 
 #ifdef _SHOW_SCALE
     m_airline.leftBoxes.push_back(AirBox{ "(" + std::to_string(GetEditor().GetDisplay().GetPixelScale().x) + "," + std::to_string(GetEditor().GetDisplay().GetPixelScale().y) + ")", m_pBuffer->GetTheme().GetColor(ThemeColor::Error) });
@@ -2363,6 +2374,12 @@ void ZepWindow::MoveCursorY(int yDistance, LineLocation clampLocation)
     // TODO; this was an assert
     if (line.lineCodePoints.empty())
     {
+        // The line is empty (e.g. a filler line, or a newly created empty line).
+        // Just move the cursor to the start of it.
+        m_bufferCursor = GlyphIterator(m_pBuffer, line.lineByteRange.first);
+        m_cursorMoved = true;
+        GetEditor().ResetCursorTimer();
+        m_pBuffer->SetLastEditLocation(m_bufferCursor);
         return;
     }
 
@@ -2470,10 +2487,20 @@ NVec2i ZepWindow::BufferToDisplay(const GlyphIterator& loc)
     if (itFind != m_windowLines.end())
         ret.y = long(std::distance(m_windowLines.begin(), itFind));
 
-    // Compute x by scanning code points of the span.
+    // Compute x by scanning code points.
+    // For wrapped lines (multi-span), need to accumulate columns from all prior spans of same buffer line.
     ret.x = 0;
     if (pSpan)
     {
+        // Sum character counts from all spans before itFind that belong to the same buffer line.
+        for (auto it = m_windowLines.begin(); it != itFind; ++it)
+        {
+            if ((*it)->bufferLineNumber == bufLine)
+            {
+                ret.x += long((*it)->lineCodePoints.size());
+            }
+        }
+        // Now add position within the current span.
         for (auto& ch : pSpan->lineCodePoints)
         {
             if (ch.iterator == loc)
@@ -2483,8 +2510,10 @@ NVec2i ZepWindow::BufferToDisplay(const GlyphIterator& loc)
     }
 
     // Clamp to non-negative (should be, but safety).
-    if (ret.x < 0) ret.x = 0;
-    if (ret.y < 0) ret.y = 0;
+    if (ret.x < 0)
+        ret.x = 0;
+    if (ret.y < 0)
+        ret.y = 0;
 
     return ret;
 }
@@ -2511,4 +2540,4 @@ NVec2i ZepWindow::BufferToDisplay(const GlyphIterator& loc)
     // Clamp
     m_nvisibleLineRange.x = std::max(0l, (long)m_nvisibleLineRange.x);
 #endif
-}
+} // namespace Zep

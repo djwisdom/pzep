@@ -1,12 +1,15 @@
 #include "zep/commands_repl.h"
 #include "zep/commands_tutor.h"
 #include "zep/editor.h"
+#include "zep/filesystem.h"
 #include "zep/mode_repl.h"
 #include "zep/mode_vim.h"
 #include "zep/raylib/display_raylib.h"
 #include "zep/repl_plugin_loader.h"
 
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <unordered_map>
 
@@ -102,12 +105,44 @@ int main(int argc, char* argv[])
 
     const char* file = (argc > 1) ? argv[1] : "untitled";
 
+    // Determine home directory and create ~/.pzep with default config if needed
+    std::filesystem::path homeDir;
+    const char* homeEnv = std::getenv("USERPROFILE");
+    if (!homeEnv)
+        homeEnv = std::getenv("HOME");
+    if (homeEnv)
+        homeDir = homeEnv;
+    else
+        homeDir = std::filesystem::current_path();
+
+    std::filesystem::path pzepDir = homeDir / ".pzep";
+    std::filesystem::create_directories(pzepDir);
+    std::filesystem::path backupDir = pzepDir / "backup";
+    std::filesystem::create_directories(backupDir);
+
+    // Initialize default .pzeprc if not present
+    std::filesystem::path pzeprcPath = pzepDir / ".pzeprc";
+    if (!std::filesystem::exists(pzeprcPath))
+    {
+        std::ofstream out(pzeprcPath);
+        out << "\" pzeprc - pZep configuration file\n";
+        out << "\" Settings are similar to vimrc\n\n";
+        out << "set number\n";
+        out << "set nolist\n";
+        out << "set wrap\n";
+        out << "set noautoindent\n";
+        out << "set expandtab\n";
+        out << "set tabstop=4\n";
+        out << "set shiftwidth=4\n";
+    }
+
     ZepDisplay_Raylib display(1280, 800);
-    ZepEditor editor(&display, std::filesystem::current_path());
+    ZepEditor editor(&display, pzepDir); // Use pzepDir as config root
     editor.SetGlobalMode(ZepMode_Vim::StaticName());
 
     // Load REPL plugins from the plugins/ directory (if any)
-    InitializeReplPluginLoader(&editor, "plugins");
+    // Plugin loading is disabled by default for security; enable via config
+    // InitializeReplPluginLoader(&editor, "plugins");
 
 #if defined(ZEP_ENABLE_LUA_REPL)
     RegisterLuaReplProvider(editor);
@@ -136,7 +171,6 @@ int main(int argc, char* argv[])
     // Without this, status bar shows at (1,1) because regions are never computed
     editor.SetDisplayRegion(NVec2f(0.0f, 0.0f), NVec2f((float)display.GetScreenWidth(), (float)display.GetScreenHeight()));
     editor.GetConfig().autoHideCommandRegion = false; // Always show status bar at bottom
-    editor.GetConfig().showLineNumbers = true;
     editor.GetConfig().showMinimap = true;
     editor.GetConfig().showIndicatorRegion = true; // Show git indicators
     editor.GetConfig().shortTabNames = true; // Short tab names
@@ -144,12 +178,10 @@ int main(int argc, char* argv[])
     editor.GetConfig().cursorLineSolid = true; // Solid cursor line
     editor.GetConfig().searchGitRoot = true; // Search for git root
 
-    // Disable relative line numbers - use absolute/normal numbering
-    auto* vimMode = dynamic_cast<ZepMode_Vim*>(editor.GetGlobalMode());
-    if (vimMode)
-    {
-        vimMode->SetUseRelativeLineNumbers(false);
-    }
+    // Load pzeprc configuration (system then user) to allow customization
+    auto configPath = editor.GetFileSystem().GetConfigPath();
+    editor.LoadPZepRC(configPath / "pzeprc");
+    editor.LoadPZepRC(configPath / "_pzeprc");
 
     while (true)
     {
@@ -315,6 +347,9 @@ int main(int argc, char* argv[])
                 }
             }
         }
+
+        // Increment keystroke counter for swap file auto-save
+        editor.IncrementKeystrokeCounter();
 
         auto mp = display.GetMousePosition();
         editor.OnMouseMove({ mp.x, mp.y });

@@ -37,8 +37,8 @@ public:
 };
 
 // Helper functions to register individual REPL commands with unique names
-void RegisterLuaReplCommand(ZepEditor& editor);
-void RegisterDuktapeReplCommand(ZepEditor& editor);
-void RegisterQuickJSReplCommand(ZepEditor& editor);
+void RegisterLuaReplCommand(ZepEditor& editor, IZepReplProvider* pProvider);
+void RegisterDuktapeReplCommand(ZepEditor& editor, IZepReplProvider* pProvider);
+void RegisterQuickJSReplCommand(ZepEditor& editor, IZepReplProvider* pProvider);
 
 } // namespace Zep

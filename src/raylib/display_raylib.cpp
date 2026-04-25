@@ -131,7 +131,8 @@ ZepDisplay_Raylib::ZepDisplay_Raylib(int width, int height)
     // Convert set to vector for LoadFontEx
     std::vector<int> codepoints(cpset.begin(), cpset.end());
 
-    m_defaultFont = LoadFontEx("C:/Windows/Fonts/CascadiaMono.ttf", 16, codepoints.data(), (int)codepoints.size());
+    // Load font at larger size (72) to allow crisp rendering at all zoom levels up to max (72)
+    m_defaultFont = LoadFontEx("C:/Windows/Fonts/CascadiaMono.ttf", 72, codepoints.data(), (int)codepoints.size());
     printf("INFO: FONT: CascadiaMono loaded: baseSize=%d, glyphCount=%d, codepoints=%zu\n", m_defaultFont.baseSize, m_defaultFont.glyphCount, codepoints.size());
     fflush(stdout);
 

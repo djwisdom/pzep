@@ -1,6 +1,7 @@
 #include "zep/editor.h"
 #include "zep/mode_repl.h"
 #include "zep/repl_plugin.h"
+#include "zep/security.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -30,7 +31,10 @@ namespace fs = std::filesystem;
 namespace Zep
 {
 
-// Structure to hold loaded plugin state
+// ============================================================
+// Secure Plugin Loader
+// ============================================================
+
 struct LoadedPlugin
 {
     std::string path;
@@ -45,12 +49,11 @@ class ReplPluginLoader
 public:
     ~ReplPluginLoader()
     {
-        // Unload all plugins
         for (auto& plugin : m_plugins)
         {
             if (plugin.initialized && plugin.api && plugin.api->shutdown)
             {
-                plugin.api->shutdown(nullptr); // Editor already gone
+                plugin.api->shutdown(nullptr);
             }
             if (plugin.handle)
             {
@@ -60,7 +63,6 @@ public:
         m_plugins.clear();
     }
 
-    // Scan plugins directory and load all REPL plugins
     bool LoadPlugins(const std::string& pluginsDir, ZepEditor* pEditor)
     {
         std::cout << "[ReplPluginLoader] Scanning for plugins in: " << pluginsDir << std::endl;
@@ -68,7 +70,7 @@ public:
         if (!fs::exists(pluginsDir))
         {
             std::cout << "[ReplPluginLoader] Plugin directory not found, skipping: " << pluginsDir << std::endl;
-            return true; // Not an error, just no plugins
+            return true;
         }
 
         for (const auto& entry : fs::directory_iterator(pluginsDir))
@@ -77,12 +79,24 @@ public:
                 continue;
 
             std::string ext = entry.path().extension().string();
-#ifdef _WIN32
             if (ext != PLUGIN_EXT)
-#else
-            if (ext != PLUGIN_EXT)
-#endif
                 continue;
+
+            // SECURITY: Check file size before loading
+            try
+            {
+                auto fileSize = fs::file_size(entry.path());
+                if (fileSize > Security::MAX_PLUGIN_FILE_SIZE)
+                {
+                    std::cerr << "[ReplPluginLoader] Plugin too large (" << fileSize << " bytes), skipping: "
+                              << entry.path().string() << std::endl;
+                    continue;
+                }
+            }
+            catch (...)
+            {
+                continue;
+            }
 
             std::string path = entry.path().string();
             std::cout << "[ReplPluginLoader] Found plugin: " << path << std::endl;
@@ -96,7 +110,6 @@ public:
         return true;
     }
 
-    // Get list of loaded plugin names
     std::vector<std::string> GetLoadedPluginNames() const
     {
         std::vector<std::string> names;
@@ -108,6 +121,8 @@ public:
     }
 
 private:
+    std::vector<LoadedPlugin> m_plugins;
+
     bool LoadPlugin(const std::string& path, ZepEditor* pEditor)
     {
         PLUGIN_HANDLE handle = PLUGIN_LOAD(path.c_str());
@@ -117,7 +132,6 @@ private:
             return false;
         }
 
-        // Get the standard entry point
         auto entryFunc = (ZepReplPluginEntryFunc)PLUGIN_GET_PROC(handle, "ZepReplPluginEntry");
         if (!entryFunc)
         {
@@ -126,7 +140,6 @@ private:
             return false;
         }
 
-        // Get the plugin API
         const ZepReplPluginAPI* api = entryFunc();
         if (!api || !api->init || !api->get_info)
         {
@@ -135,7 +148,6 @@ private:
             return false;
         }
 
-        // Query plugin info
         const ZepReplPluginInfo* info = api->get_info();
         if (!info || !info->name)
         {
@@ -144,8 +156,13 @@ private:
             return false;
         }
 
-        // Initialize plugin (this will register its commands with the editor)
-        // Cast ZepEditor* to ZepEditorHandle (void*) - safe because plugin side will cast back
+        if (m_plugins.size() >= Security::MAX_PLUGINS_LOADED)
+        {
+            std::cerr << "[ReplPluginLoader] Maximum number of plugins reached, skipping: " << info->name << std::endl;
+            PLUGIN_UNLOAD(handle);
+            return false;
+        }
+
         int initResult = api->init(reinterpret_cast<ZepEditorHandle>(pEditor));
         if (initResult != 0)
         {
@@ -169,10 +186,10 @@ private:
         std::cout << "[ReplPluginLoader] Loaded REPL plugin: " << plugin.info.name
                   << " (" << plugin.info.display_name << ") v" << plugin.info.version << std::endl;
 
+        ZLOG(INFO, "Plugin loaded: " << plugin.info.name << " from " << path);
+
         return true;
     }
-
-    std::vector<LoadedPlugin> m_plugins;
 };
 
 // Singleton access

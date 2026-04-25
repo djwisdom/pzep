@@ -5,11 +5,14 @@
 #include "zep/mcommon/logger.h"
 #include "zep/mode_repl.h"
 #include "zep/repl_capabilities.h"
+#include "zep/security.h"
 #include "zep/tab_window.h"
 #include "zep/window.h"
 
 #include <lua.hpp>
 
+#include <atomic>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
@@ -17,7 +20,7 @@
 namespace Zep
 {
 
-// Lua REPL Provider implementation
+// Lua REPL Provider implementation - Security-hardened
 class LuaReplProvider : public IZepReplProvider
 {
 public:
@@ -29,23 +32,148 @@ public:
     bool ReplIsFormComplete(const std::string& input, int& depth) override;
 
 private:
+    // === SECURITY STATE ===
+    struct SecurityState
+    {
+        std::atomic<int> instructionCount{ 0 };
+        std::atomic<size_t> memoryUsed{ 0 };
+        std::chrono::steady_clock::time_point executionStart;
+        bool timeoutTriggered = false;
+    };
+
     ZepEditor* m_pEditor = nullptr;
     lua_State* L = nullptr;
     std::unique_ptr<std::string> m_printOutput;
     std::shared_ptr<EditorCapability> m_edCap;
+    SecurityState m_secState;
+
+    // Helper methods
+    static void luaHook(lua_State* L, lua_Debug* ar);
+    static void* luaAlloc(void* ud, void* ptr, size_t osize, size_t nsize);
+    static void luaPanic(lua_State* L);
+    bool CheckTimeLimit() const;
+    void ResetSecurityState();
+
+    // Registry key for provider pointer
+    static constexpr const char* PROVIDER_REGISTRY_KEY = "LuaReplProvider";
 };
 
-namespace
+ZepEditor* m_pEditor = nullptr;
+lua_State* L = nullptr;
+std::unique_ptr<std::string> m_printOutput;
+std::shared_ptr<EditorCapability> m_edCap;
+SecurityState m_secState;
+
+// Helper methods
+static void luaHook(lua_State* L, lua_Debug* ar);
+static void* luaAlloc(void* ud, void* ptr, size_t osize, size_t nsize);
+static void luaPanic(lua_State* L);
+bool CheckTimeLimit();
+void ResetSecurityState();
+};
+
+// ============================================================
+// Lua Security: Instruction counting hook
+// ============================================================
+
+void LuaReplProvider::luaHook(lua_State* L, lua_Debug* ar)
 {
+    ZEP_UNUSED(ar);
+    LuaReplProvider* self = static_cast<LuaReplProvider*>(lua_getextraspace(L));
+    if (self)
+    {
+        self->m_secState.instructionCount++;
+        if (self->m_secState.instructionCount >= Security::LUA_MAX_INSTRUCTIONS)
+        {
+            self->m_secState.timeoutTriggered = true;
+            luaL_error(L, "Execution limit exceeded (%d instructions)", Security::LUA_MAX_INSTRUCTIONS);
+        }
+        if (!self->CheckTimeLimit())
+        {
+            self->m_secState.timeoutTriggered = true;
+            luaL_error(L, "Execution timeout (%d ms)", Security::LUA_EXECUTION_TIMEOUT_MS);
+        }
+    }
+}
+
+bool LuaReplProvider::CheckTimeLimit()
+{
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_secState.executionStart);
+    if (elapsed.count() >= Security::LUA_EXECUTION_TIMEOUT_MS)
+    {
+        return false;
+    }
+    return true;
+}
+
+void LuaReplProvider::ResetSecurityState()
+{
+    m_secState.instructionCount = 0;
+    m_secState.memoryUsed = 0;
+    m_secState.timeoutTriggered = false;
+    m_secState.executionStart = std::chrono::steady_clock::now();
+}
+
+// ============================================================
+// Lua Security: Memory allocation tracking
+// ============================================================
+
+void* LuaReplProvider::luaAlloc(void* ud, void* ptr, size_t osize, size_t nsize)
+{
+    LuaReplProvider* self = static_cast<LuaReplProvider*>(ud);
+    if (!self)
+        return nullptr;
+
+    // Track memory usage
+    if (ptr)
+    {
+        self->m_secState.memoryUsed -= osize;
+    }
+    if (nsize > 0)
+    {
+        self->m_secState.memoryUsed += nsize;
+        if (self->m_secState.memoryUsed > Security::LUA_MAX_MEMORY)
+        {
+            ZLOG(WARN, "Lua memory limit exceeded");
+            return nullptr;
+        }
+    }
+
+    if (nsize == 0)
+    {
+        free(ptr);
+        return nullptr;
+    }
+    else
+    {
+        void* newptr = realloc(ptr, nsize);
+        if (!newptr && nsize > 0)
+        {
+            self->m_secState.memoryUsed -= nsize;
+        }
+        return newptr;
+    }
+}
+
+void LuaReplProvider::luaPanic(lua_State* L)
+{
+    const char* msg = lua_tostring(L, -1);
+    ZLOG(ERROR, "Lua panic: " << (msg ? msg : "unknown error"));
+    lua_close(L);
+    std::abort();
+}
 
 // ============================================================
 // Lua-side Capability Object Representation
 // ============================================================
 
+namespace
+{
+
 // Store shared_ptr<BufferCapability> as Lua userdata
 void pushBufferCapability(lua_State* L, std::shared_ptr<BufferCapability> bufCap)
 {
-    // Create userdata containing shared_ptr
     std::shared_ptr<BufferCapability>* ud = (std::shared_ptr<BufferCapability>*)lua_newuserdata(L, sizeof(std::shared_ptr<BufferCapability>));
     new (ud) std::shared_ptr<BufferCapability>(std::move(bufCap));
     luaL_getmetatable(L, "ZepBufferCap");
@@ -85,19 +213,8 @@ std::shared_ptr<EditorCapability> checkEditorCapability(lua_State* L, int idx)
     return *pShared;
 }
 
-// Helper: convert std::vector<std::string> to Lua table (for audit)
-void pushStringVector(lua_State* L, const std::vector<std::string>& vec)
-{
-    lua_newtable(L);
-    for (size_t i = 0; i < vec.size(); ++i)
-    {
-        lua_pushlstring(L, vec[i].c_str(), vec[i].size());
-        lua_rawseti(L, -2, i + 1);
-    }
-}
-
 // ============================================================
-// BufferCapability Lua Methods
+// BufferCapability Lua Methods (Read-only)
 // ============================================================
 
 static int bufcap_GetName(lua_State* L)
@@ -126,14 +243,23 @@ static int bufcap_GetLineText(lua_State* L)
 {
     auto bufCap = checkBufferCapability(L, 1);
     long line = (long)luaL_checkinteger(L, 2);
+    // SECURITY: Limit line index to prevent out-of-bounds access
+    if (line < 0 || line >= bufCap->GetLineCount())
+    {
+        lua_pushstring(L, "");
+        return 1;
+    }
     std::string text = bufCap->GetLineText(line);
+    // SECURITY: Truncate excessively long lines
+    constexpr size_t MAX_LINE_RETURN = 4096;
+    if (text.size() > MAX_LINE_RETURN)
+        text.resize(MAX_LINE_RETURN);
     lua_pushlstring(L, text.c_str(), text.size());
     return 1;
 }
 
 static int bufcap_GetCursor(lua_State* L)
 {
-    ZEP_UNUSED(L);
     auto bufCap = checkBufferCapability(L, 1);
     auto cursor = bufCap->GetCursor();
     lua_newtable(L);
@@ -151,10 +277,8 @@ static int bufcap_IsModified(lua_State* L)
     return 1;
 }
 
-// Note: No Insert/Replace/Save methods - those are denied in capability
-
 // ============================================================
-// EditorCapability Lua Methods
+// EditorCapability Lua Methods (Read-only)
 // ============================================================
 
 static int edcap_GetBuffers(lua_State* L)
@@ -195,7 +319,7 @@ static int edcap_GetVersion(lua_State* L)
 }
 
 // ============================================================
-// Garbage Collection for userdata (shared_ptr destruction)
+// Garbage Collection
 // ============================================================
 
 static int bufcap_gc(lua_State* L)
@@ -228,29 +352,20 @@ void registerBufferCapabilityMetatable(lua_State* L)
 {
     luaL_newmetatable(L, "ZepBufferCap");
     lua_newtable(L);
-
     lua_pushcfunction(L, bufcap_GetName);
     lua_setfield(L, -2, "GetName");
-
     lua_pushcfunction(L, bufcap_GetLength);
     lua_setfield(L, -2, "GetLength");
-
     lua_pushcfunction(L, bufcap_GetLineCount);
     lua_setfield(L, -2, "GetLineCount");
-
     lua_pushcfunction(L, bufcap_GetLineText);
     lua_setfield(L, -2, "GetLineText");
-
     lua_pushcfunction(L, bufcap_GetCursor);
     lua_setfield(L, -2, "GetCursor");
-
     lua_pushcfunction(L, bufcap_IsModified);
     lua_setfield(L, -2, "IsModified");
-
-    // __gc for shared_ptr cleanup
     lua_pushcfunction(L, bufcap_gc);
     lua_setfield(L, -2, "__gc");
-
     lua_setfield(L, -2, "__index");
     lua_pop(L, 1);
 }
@@ -259,20 +374,14 @@ void registerEditorCapabilityMetatable(lua_State* L)
 {
     luaL_newmetatable(L, "ZepEditorCap");
     lua_newtable(L);
-
     lua_pushcfunction(L, edcap_GetBuffers);
     lua_setfield(L, -2, "GetBuffers");
-
     lua_pushcfunction(L, edcap_GetActiveBuffer);
     lua_setfield(L, -2, "GetActiveBuffer");
-
     lua_pushcfunction(L, edcap_GetVersion);
     lua_setfield(L, -2, "GetVersion");
-
-    // __gc for shared_ptr cleanup
     lua_pushcfunction(L, edcap_gc);
     lua_setfield(L, -2, "__gc");
-
     lua_setfield(L, -2, "__index");
     lua_pop(L, 1);
 }
@@ -291,7 +400,9 @@ static int l_print(lua_State* L)
         const char* s = lua_tolstring(L, i, &len);
         if (s)
         {
-            output->append(s, len);
+            // SECURITY: Limit total output size
+            if (output->size() + len < Security::LUA_MAX_OUTPUT_SIZE)
+                output->append(s, len);
         }
         if (i < n)
             output->push_back('\t');
@@ -303,7 +414,7 @@ static int l_print(lua_State* L)
 } // anonymous namespace
 
 // ============================================================
-// LuaReplProvider - Security-Sandboxed Implementation
+// LuaReplProvider - Security-Hardened Implementation
 // ============================================================
 
 LuaReplProvider::LuaReplProvider()
@@ -329,9 +440,12 @@ void LuaReplProvider::Initialize(ZepEditor* pEditor)
     // Create capability-based API (sandbox)
     m_edCap = CreateEditorCapability(pEditor);
 
-    // Create Lua state
-    L = luaL_newstate();
+    // Create Lua state with custom allocator for memory tracking
+    L = lua_newstate(luaAlloc, this);
     luaL_openlibs(L);
+
+    // Store provider pointer in extra space for hook access
+    lua_setextraspace(L, this);
 
     // === SECURITY: Remove dangerous globals ===
     static const char* dangerous[] = {
@@ -344,6 +458,7 @@ void LuaReplProvider::Initialize(ZepEditor* pEditor)
         "load", // arbitrary code generation
         "debug", // introspection/mutation
         "module", // legacy module system
+        "jit", // LuaJIT extensions
         nullptr
     };
     for (int i = 0; dangerous[i]; i++)
@@ -352,7 +467,19 @@ void LuaReplProvider::Initialize(ZepEditor* pEditor)
         lua_setglobal(L, dangerous[i]);
     }
 
-    // === SECURITY: Sandboxed print ===
+    // === SECURITY: Override os.execute, io.* if any remain ===
+    lua_pushnil(L);
+    lua_setglobal(L, "os");
+    lua_pushnil(L);
+    lua_setglobal(L, "io");
+
+    // === SECURITY: Set panic handler ===
+    lua_atpanic(L, luaPanic);
+
+    // === SECURITY: Install instruction count hook ===
+    lua_sethook(L, luaHook, LUA_MASKLINE | LUA_MASKCOUNT, 100); // Check every 100 instructions
+
+    // === SECURITY: Sandboxed print with output limit ===
     lua_pushlightuserdata(L, m_printOutput.get());
     lua_pushcclosure(L, l_print, 1);
     lua_setglobal(L, "print");
@@ -362,19 +489,13 @@ void LuaReplProvider::Initialize(ZepEditor* pEditor)
     registerEditorCapabilityMetatable(L);
 
     // === EXPOSE CONTROL INTERFACE ===
-    // Push editor capability shared_ptr as userdata and set global 'editor'
     std::shared_ptr<EditorCapability>* ed_ud = (std::shared_ptr<EditorCapability>*)lua_newuserdata(L, sizeof(std::shared_ptr<EditorCapability>));
     new (ed_ud) std::shared_ptr<EditorCapability>(m_edCap);
     luaL_getmetatable(L, "ZepEditorCap");
     lua_setmetatable(L, -2);
     lua_setglobal(L, "editor");
 
-    // For backwards compatibility, also expose as 'editor' (now capability-wrapped)
-    // Previously exposed raw ZepEditor*, now replaced with capability wrapper
-
-    // === AUDIT LOGGING ===
-    // Optionally expose audit interface (future extension)
-    // lua_pushlightuserdata(L, this);  // for callbacks to audit
+    ResetSecurityState();
 }
 
 std::string LuaReplProvider::ReplParse(const std::string& text)
@@ -382,9 +503,16 @@ std::string LuaReplProvider::ReplParse(const std::string& text)
     if (!L)
         return "<Lua REPL not initialized>";
 
-    m_printOutput->clear();
+    // SECURITY: Limit input size
+    if (text.size() > Security::MAX_REPL_INPUT_SIZE)
+    {
+        return "Error: Input exceeds maximum size";
+    }
 
-    // Load the code
+    m_printOutput->clear();
+    ResetSecurityState();
+
+    // SECURITY: Load with protected mode
     int status = luaL_loadstring(L, text.c_str());
     if (status != LUA_OK)
     {
@@ -396,20 +524,32 @@ std::string LuaReplProvider::ReplParse(const std::string& text)
         return msg;
     }
 
-    // Execute
+    // SECURITY: Execute with protected call
     status = lua_pcall(L, 0, LUA_MULTRET, 0);
     if (status != LUA_OK)
     {
         const char* err = lua_tostring(L, -1);
         std::string msg = "Runtime error: ";
         if (err)
+        {
             msg += err;
+            // Log security-relevant errors
+            if (m_pEditor)
+            {
+                ZLOG(WARN, "Lua runtime error: " << err);
+            }
+        }
         lua_pop(L, 1);
         return msg;
     }
 
-    // Collect results
+    // Collect results (limit number)
     int n = lua_gettop(L);
+    if (n > 10)
+    {
+        // Too many results, truncate
+        n = 10;
+    }
     std::string result;
     for (int i = 1; i <= n; i++)
     {
@@ -417,7 +557,9 @@ std::string LuaReplProvider::ReplParse(const std::string& text)
         const char* s = lua_tolstring(L, i, &len);
         if (s)
         {
-            result.append(s, len);
+            // SECURITY: Limit individual result size
+            if (result.size() + len < Security::LUA_MAX_OUTPUT_SIZE)
+                result.append(s, len);
         }
         else
         {
@@ -425,7 +567,7 @@ std::string LuaReplProvider::ReplParse(const std::string& text)
             lua_pushvalue(L, i);
             lua_call(L, 1, 1);
             const char* s2 = lua_tostring(L, -1);
-            if (s2)
+            if (s2 && result.size() < Security::LUA_MAX_OUTPUT_SIZE)
                 result += s2;
             lua_pop(L, 1);
         }
@@ -448,7 +590,6 @@ std::string LuaReplProvider::ReplParse(const std::string& text)
 std::string LuaReplProvider::ReplParse(ZepBuffer& text, const GlyphIterator& cursorOffset, ReplParseType type)
 {
     ZEP_UNUSED(type);
-    // Simple approach: evaluate the current line at cursor
     long line = text.GetBufferLine(cursorOffset);
     std::string lineText = text.GetLineText(line);
     return ReplParse(lineText);

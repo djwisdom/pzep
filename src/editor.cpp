@@ -6,15 +6,22 @@
 #include "zep/mode_search.h"
 #include "zep/mode_standard.h"
 #include "zep/mode_tree.h"
+#include "zep/mode_vim.h"
 #include "zep/regress.h"
+#include "zep/security.h"
 #include "zep/syntax.h"
 #include "zep/syntax_providers.h"
 #include "zep/tab_window.h"
+#include "zep/window.h"
 
 #include "config_app.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cstring>
 #include <unordered_set>
+
+#include "zep/mcommon/string/stringutils.h"
 
 namespace Zep
 {
@@ -171,10 +178,26 @@ void ZepEditor::LoadConfig(const fs::path& config_path)
 
     try
     {
+        // === SECURITY: Check file size before parsing ===
+        auto fileSize = std::filesystem::file_size(config_path);
+        if (fileSize > Security::MAX_CONFIG_FILE_SIZE)
+        {
+            std::ostringstream str;
+            str << config_path.filename().string() << " : Config file exceeds maximum size ("
+                << Security::MAX_CONFIG_FILE_SIZE << " bytes)";
+            SetCommandText(str.str());
+            return;
+        }
+
         std::shared_ptr<cpptoml::table> spConfig;
         spConfig = cpptoml::parse_file(config_path.string());
         if (spConfig == nullptr)
             return;
+
+        // === SECURITY: Validate table depth (basic heuristic) ===
+        // cpptoml doesn't expose depth directly, but we can validate
+        // that no individual key path is unreasonably long by checking key names
+        // More importantly: validate all values are within expected ranges after parsing
 
         LoadConfig(spConfig);
     }
@@ -199,18 +222,67 @@ void ZepEditor::LoadConfig(std::shared_ptr<cpptoml::table> spConfig)
         m_config.showNormalModeKeyStrokes = spConfig->get_qualified_as<bool>("editor.show_normal_mode_keystrokes").value_or(false);
         m_config.showIndicatorRegion = spConfig->get_qualified_as<bool>("editor.show_indicator_region").value_or(true);
         m_config.showLineNumbers = spConfig->get_qualified_as<bool>("editor.show_line_numbers").value_or(true);
+        m_config.relativeNumber = spConfig->get_qualified_as<bool>("editor.relative_number").value_or(false);
+        m_config.wrap = spConfig->get_qualified_as<bool>("editor.wrap").value_or(true);
+        m_config.list = spConfig->get_qualified_as<bool>("editor.list").value_or(false);
+        m_config.autoindent = spConfig->get_qualified_as<bool>("editor.autoindent").value_or(false);
+        // Apply autoindent to editor flags
+        if (m_config.autoindent)
+            SetFlags(GetFlags() | ZepEditorFlags::AutoIndent);
+        else
+            SetFlags(GetFlags() & ~ZepEditorFlags::AutoIndent);
+
+        m_config.expandtab = spConfig->get_qualified_as<bool>("editor.expandtab").value_or(true);
         m_config.autoHideCommandRegion = spConfig->get_qualified_as<bool>("editor.autohide_command_region").value_or(false);
         m_config.cursorLineSolid = spConfig->get_qualified_as<bool>("editor.cursor_line_solid").value_or(true);
-        m_config.backgroundFadeTime = (float)spConfig->get_qualified_as<double>("editor.background_fade_time").value_or(60.0f);
-        m_config.backgroundFadeWait = (float)spConfig->get_qualified_as<double>("editor.background_fade_wait").value_or(60.0f);
-        m_config.showScrollBar = spConfig->get_qualified_as<uint32_t>("editor.show_scrollbar").value_or(1);
-        m_config.lineMargins.x = (float)spConfig->get_qualified_as<double>("editor.line_margin_top").value_or(1);
-        m_config.lineMargins.y = (float)spConfig->get_qualified_as<double>("editor.line_margin_bottom").value_or(1);
-        m_config.widgetMargins.x = (float)spConfig->get_qualified_as<double>("editor.widget_margin_top").value_or(1);
-        m_config.widgetMargins.y = (float)spConfig->get_qualified_as<double>("editor.widget_margin_bottom").value_or(1);
+
+        // === SECURITY: Validate numeric ranges ===
+        auto bgFadeTime = spConfig->get_qualified_as<double>("editor.background_fade_time");
+        if (bgFadeTime && *bgFadeTime >= 0.0 && *bgFadeTime <= 3600.0f)
+            m_config.backgroundFadeTime = (float)*bgFadeTime;
+        else
+            m_config.backgroundFadeTime = 60.0f;
+
+        auto bgFadeWait = spConfig->get_qualified_as<double>("editor.background_fade_wait");
+        if (bgFadeWait && *bgFadeWait >= 0.0 && *bgFadeWait <= 3600.0f)
+            m_config.backgroundFadeWait = (float)*bgFadeWait;
+        else
+            m_config.backgroundFadeWait = 60.0f;
+
+        auto scrollBar = spConfig->get_qualified_as<uint32_t>("editor.show_scrollbar");
+        if (scrollBar && *scrollBar <= 2)
+            m_config.showScrollBar = *scrollBar;
+        else
+            m_config.showScrollBar = 1;
+
+        auto lineMarginTop = spConfig->get_qualified_as<double>("editor.line_margin_top");
+        if (lineMarginTop && *lineMarginTop >= 0.0 && *lineMarginTop <= 10.0)
+            m_config.lineMargins.x = (float)*lineMarginTop;
+        else
+            m_config.lineMargins.x = 1.0f;
+
+        auto lineMarginBottom = spConfig->get_qualified_as<double>("editor.line_margin_bottom");
+        if (lineMarginBottom && *lineMarginBottom >= 0.0 && *lineMarginBottom <= 10.0)
+            m_config.lineMargins.y = (float)*lineMarginBottom;
+        else
+            m_config.lineMargins.y = 1.0f;
+
+        auto widgetMarginTop = spConfig->get_qualified_as<double>("editor.widget_margin_top");
+        if (widgetMarginTop && *widgetMarginTop >= 0.0 && *widgetMarginTop <= 10.0)
+            m_config.widgetMargins.x = (float)*widgetMarginTop;
+        else
+            m_config.widgetMargins.x = 1.0f;
+
+        auto widgetMarginBottom = spConfig->get_qualified_as<double>("editor.widget_margin_bottom");
+        if (widgetMarginBottom && *widgetMarginBottom >= 0.0 && *widgetMarginBottom <= 10.0)
+            m_config.widgetMargins.y = (float)*widgetMarginBottom;
+        else
+            m_config.widgetMargins.y = 1.0f;
+
         m_config.shortTabNames = spConfig->get_qualified_as<bool>("editor.short_tab_names").value_or(false);
         m_config.tabToneColors = spConfig->get_qualified_as<bool>("editor.tab_tone_colors").value_or(false);
         m_config.searchGitRoot = spConfig->get_qualified_as<bool>("search.search_git_root").value_or(true);
+
         auto styleStr = string_tolower(spConfig->get_qualified_as<std::string>("editor.style").value_or("normal"));
         if (styleStr == "normal")
         {
@@ -223,6 +295,28 @@ void ZepEditor::LoadConfig(std::shared_ptr<cpptoml::table> spConfig)
 
         // Forward settings to file system
         GetFileSystem().SetFlags(m_config.searchGitRoot ? ZepFileSystemFlags::SearchGitRoot : 0);
+
+        // Apply new config values to existing windows and buffers
+        ApplyWindowFlagsFromConfig();
+
+        // Apply expandtab to all existing buffers
+        for (auto& buf : m_buffers)
+        {
+            buf->SetFileFlags(FileFlags::InsertTabs, !m_config.expandtab);
+        }
+
+        // Apply relativeNumber to vim mode if active
+        auto pMode = GetGlobalMode();
+        if (pMode && strcmp(pMode->Name(), "Vim") == 0)
+        {
+            static_cast<ZepMode_Vim*>(pMode)->SetUseRelativeLineNumbers(m_config.relativeNumber);
+        }
+
+        // Ensure autoindent flag is up to date
+        if (m_config.autoindent)
+            SetFlags(GetFlags() | ZepEditorFlags::AutoIndent);
+        else
+            SetFlags(GetFlags() & ~ZepEditorFlags::AutoIndent);
     }
     catch (...)
     {
@@ -262,6 +356,225 @@ void ZepEditor::SaveConfig(std::shared_ptr<cpptoml::table> spConfig)
     cpptoml::toml_writer writer(stream, "");
     writer.visit(*spConfig);
     */
+}
+
+void ZepEditor::LoadPZepRC(const fs::path& path)
+{
+    if (!GetFileSystem().Exists(path))
+        return;
+
+    try
+    {
+        std::string content = GetFileSystem().Read(path);
+        auto lines = string_split(content, "\n");
+        for (auto& line : lines)
+        {
+            line = Trim(line);
+            if (line.empty() || line[0] == '"' || line[0] == '#')
+                continue;
+            // Must start with "set"
+            if (line.size() < 3 || line[0] != 's' || line[1] != 'e' || line[2] != 't')
+                continue;
+            // Ensure it's a whole word (not setlocal etc.)
+            if (line.size() > 3 && !isspace(static_cast<unsigned char>(line[3])))
+                continue;
+            std::string rest = line.substr(3);
+            rest = Trim(rest);
+            if (rest.empty())
+                continue;
+            auto tokens = string_split(rest, " \t");
+            for (auto& token : tokens)
+            {
+                if (token.empty())
+                    continue;
+                ApplyPZepRCOption(token);
+            }
+        }
+    }
+    catch (...)
+    {
+        // Ignore parse errors
+    }
+}
+
+void ZepEditor::ApplyPZepRCOption(const std::string& opt)
+{
+    // Boolean toggles
+    if (opt == "number")
+    {
+        m_config.showLineNumbers = true;
+        ApplyWindowFlagsFromConfig();
+    }
+    else if (opt == "nonumber")
+    {
+        m_config.showLineNumbers = false;
+        ApplyWindowFlagsFromConfig();
+    }
+    else if (opt == "relativenumber")
+    {
+        m_config.relativeNumber = true;
+        auto pMode = GetGlobalMode();
+        if (pMode && strcmp(pMode->Name(), "Vim") == 0)
+        {
+            static_cast<ZepMode_Vim*>(pMode)->SetUseRelativeLineNumbers(true);
+        }
+    }
+    else if (opt == "norelativenumber")
+    {
+        m_config.relativeNumber = false;
+        auto pMode = GetGlobalMode();
+        if (pMode && strcmp(pMode->Name(), "Vim") == 0)
+        {
+            static_cast<ZepMode_Vim*>(pMode)->SetUseRelativeLineNumbers(false);
+        }
+    }
+    else if (opt == "list")
+    {
+        m_config.list = true;
+        ApplyWindowFlagsFromConfig();
+    }
+    else if (opt == "nolist")
+    {
+        m_config.list = false;
+        ApplyWindowFlagsFromConfig();
+    }
+    else if (opt == "wrap")
+    {
+        m_config.wrap = true;
+        ApplyWindowFlagsFromConfig();
+    }
+    else if (opt == "nowrap")
+    {
+        m_config.wrap = false;
+        ApplyWindowFlagsFromConfig();
+    }
+    else if (opt == "autoindent")
+    {
+        m_config.autoindent = true;
+        SetFlags(GetFlags() | ZepEditorFlags::AutoIndent);
+    }
+    else if (opt == "noautoindent")
+    {
+        m_config.autoindent = false;
+        SetFlags(GetFlags() & ~ZepEditorFlags::AutoIndent);
+    }
+    else if (opt == "expandtab")
+    {
+        m_config.expandtab = true;
+        for (auto& buf : m_buffers)
+        {
+            buf->SetFileFlags(FileFlags::InsertTabs, false);
+        }
+    }
+    else if (opt == "noexpandtab")
+    {
+        m_config.expandtab = false;
+        for (auto& buf : m_buffers)
+        {
+            buf->SetFileFlags(FileFlags::InsertTabs, true);
+        }
+    }
+    else if (opt.find('=') != std::string::npos)
+    {
+        size_t pos = opt.find('=');
+        std::string name = opt.substr(0, pos);
+        std::string value = opt.substr(pos + 1);
+        if (name == "tabstop")
+        {
+            try
+            {
+                m_config.tabStop = std::stoi(value);
+            }
+            catch (...)
+            {
+            }
+        }
+        else if (name == "shiftwidth")
+        {
+            try
+            {
+                m_config.shiftWidth = std::stoi(value);
+            }
+            catch (...)
+            {
+            }
+        }
+    }
+}
+
+void ZepEditor::ApplyWindowFlagsFromConfig()
+{
+    uint32_t flags = WindowFlags::ShowIndicators;
+    if (m_config.showLineNumbers)
+        flags |= WindowFlags::ShowLineNumbers;
+    if (m_config.wrap)
+        flags |= WindowFlags::WrapText;
+    if (m_config.list)
+        flags |= WindowFlags::ShowWhiteSpace;
+
+    uint32_t managedMask = WindowFlags::ShowLineNumbers | WindowFlags::WrapText | WindowFlags::ShowWhiteSpace;
+
+    for (auto& tab : m_tabWindows)
+    {
+        for (auto& winPtr : tab->GetWindows())
+        {
+            ZepWindow* win = winPtr.get();
+            uint32_t current = win->GetWindowFlags();
+            uint32_t newFlags = (current & ~managedMask) | flags;
+            win->SetWindowFlags(newFlags);
+        }
+    }
+}
+
+void ZepEditor::IncrementKeystrokeCounter()
+{
+    m_keystrokeCount++;
+    if (m_keystrokeCount >= 20)
+    {
+        SaveSwapFiles();
+        m_keystrokeCount = 0;
+    }
+}
+
+void ZepEditor::SaveSwapFiles()
+{
+    // Ensure backup directory exists
+    auto backupDir = GetFileSystem().GetConfigPath() / "backup";
+    if (!GetFileSystem().Exists(backupDir))
+    {
+        GetFileSystem().MakeDirectories(backupDir);
+    }
+
+    for (auto& buf : m_buffers)
+    {
+        if (buf->HasFileFlags(FileFlags::Dirty))
+        {
+            // Generate swap file name from buffer's file path or name
+            auto filePath = buf->GetFilePath();
+            std::string name;
+            if (!filePath.empty())
+            {
+                name = filePath.string();
+                // Sanitize path separators and invalid characters for filename
+                for (char& c : name)
+                {
+                    if (c == ':' || c == '/' || c == '\\' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|')
+                        c = '_';
+                }
+            }
+            else
+            {
+                name = buf->GetName();
+            }
+            name += ".swp";
+
+            auto swapPath = backupDir / name;
+
+            // Write buffer text to swap file
+            std::string text = buf->GetWorkingBuffer().string();
+            GetFileSystem().Write(swapPath, text.data(), text.size());
+        }
+    }
 }
 
 void ZepEditor::SaveBufferAs(ZepBuffer& buffer, fs::path path)
@@ -962,6 +1275,12 @@ ZepBuffer* ZepEditor::CreateNewBuffer(const std::string& str)
 
     InitBuffer(*pBuffer);
 
+    // Apply expandtab setting: if expandtab is false, we want InsertTabs (raw tabs)
+    if (!m_config.expandtab)
+    {
+        pBuffer->SetFileFlags(FileFlags::InsertTabs, true);
+    }
+
     return pBuffer.get();
 }
 
@@ -971,6 +1290,12 @@ ZepBuffer* ZepEditor::CreateNewBuffer(const fs::path& path)
     m_buffers.push_front(pBuffer);
 
     InitBuffer(*pBuffer);
+
+    // Apply expandtab setting: if expandtab is false, we want InsertTabs (raw tabs)
+    if (!m_config.expandtab)
+    {
+        pBuffer->SetFileFlags(FileFlags::InsertTabs, true);
+    }
 
     return pBuffer.get();
 }

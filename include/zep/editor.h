@@ -261,6 +261,11 @@ struct EditorConfig
     NVec2f inlineWidgetMargins = NVec2f(2.0f);
     float underlineHeight = 3.0f;
     bool showLineNumbers = true;
+    bool relativeNumber = false; // Vim-style relative line numbers
+    bool wrap = true; // Wrap text
+    bool list = false; // Show whitespace characters
+    bool autoindent = false; // Auto-indent on new lines
+    bool expandtab = true; // Use spaces for tabs (expandtab)
     bool shortTabNames = true;
     bool tabToneColors = false;
     bool showIndicatorRegion = true;
@@ -313,6 +318,9 @@ public:
     void LoadConfig(const fs::path& config_path);
     void LoadConfig(std::shared_ptr<cpptoml::table> spConfig);
     void SaveConfig(std::shared_ptr<cpptoml::table> spConfig);
+    void LoadPZepRC(const fs::path& path);
+    void IncrementKeystrokeCounter();
+    void SaveSwapFiles();
     void RequestQuit();
 
     void Reset();
@@ -468,6 +476,10 @@ private:
     // Ensure there is a valid tab window and return it
     ZepTabWindow* EnsureTab();
 
+    // pzeprc configuration loader helpers
+    void ApplyPZepRCOption(const std::string& opt);
+    void ApplyWindowFlagsFromConfig();
+
 public:
     bool isFocused = true;
 
@@ -508,6 +520,7 @@ private:
     // REPL providers ownership
     std::vector<std::unique_ptr<IZepReplProvider>> m_replProviders;
     uint32_t m_flags = 0;
+    size_t m_keystrokeCount = 0;
 
     mutable std::atomic_bool m_bPendingRefresh = { true };
     mutable bool m_lastCursorBlink = false;

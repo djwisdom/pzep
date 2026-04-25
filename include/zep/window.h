@@ -255,7 +255,7 @@ private:
     bool m_layoutDirty = true;
     bool m_scrollVisibilityChanged = true;
     bool m_cursorMoved = true;
-    uint32_t m_windowFlags = WindowFlags::ShowWhiteSpace | WindowFlags::ShowIndicators | WindowFlags::ShowLineNumbers | WindowFlags::WrapText;
+    uint32_t m_windowFlags;
 
     // Incremental layout tracking (partial UpdateLineSpans)
     long m_dirtyBufferLineStart = -1; // inclusive; -1 means no partial dirty
