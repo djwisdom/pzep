@@ -812,7 +812,29 @@ ZepBuffer* ZepEditor::InitWithFileOrDir(const std::string& str)
         }
     }
 
-    return InitWithFile(str);
+    ZepBuffer* buffer = InitWithFile(str);
+
+    // Auto-enable code folding for known source code file extensions
+    if (fs.Exists(startPath) && !fs.IsDirectory(startPath))
+    {
+        std::string ext = startPath.extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        static const std::unordered_set<std::string> codeExts = {
+            ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".hh", ".hxx",
+            ".py", ".java", ".go", ".rs", ".swift", ".m", ".mm",
+            ".js", ".ts", ".jsx", ".tsx", ".cs", ".php", ".rb", ".lua",
+            ".r", ".sh", ".bash", ".zsh", ".ps1", ".bat", ".cmd",
+            ".make", ".mk", ".cmake", ".toml", ".yaml", ".yml", ".json",
+            ".tex", ".sql", ".html", ".css", ".scss", ".less", ".xml", ".svg"
+        };
+        if (codeExts.find(ext) != codeExts.end())
+        {
+            buffer->GetFold().RebuildFromIndentation();
+            GetDisplay().SetLayoutDirty(true);
+        }
+    }
+
+    return buffer;
 }
 
 ZepBuffer* ZepEditor::InitWithFile(const std::string& str)

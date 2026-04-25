@@ -124,6 +124,53 @@ void DrawWelcomeScreen(ZepDisplay& display, ZepFont& font)
 
 int main(int argc, char* argv[])
 {
+    // Check for --init / --initialize first (must be sole argument)
+    bool doInit = false;
+    for (int i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--init") == 0 || strcmp(argv[i], "--initialize") == 0)
+            doInit = true;
+    }
+
+    if (doInit)
+    {
+        // Determine home directory
+        std::filesystem::path homeDir;
+        const char* homeEnv = std::getenv("USERPROFILE");
+        if (!homeEnv)
+            homeEnv = std::getenv("HOME");
+        if (homeEnv)
+            homeDir = homeEnv;
+        else
+            homeDir = std::filesystem::current_path();
+
+        std::filesystem::path pzepDir = homeDir / ".pzep";
+        std::filesystem::create_directories(pzepDir);
+        std::filesystem::path backupDir = pzepDir / "backup";
+        std::filesystem::create_directories(backupDir);
+
+        // Write default .pzeprc only if it doesn't exist
+        std::filesystem::path pzeprcPath = pzepDir / ".pzeprc";
+        if (!std::filesystem::exists(pzeprcPath))
+        {
+            std::ofstream out(pzeprcPath);
+            out << "\" pzeprc - pZep configuration file\n";
+            out << "\" Settings are similar to vimrc\n\n";
+            out << "set number\n";
+            out << "set nolist\n";
+            out << "set wrap\n";
+            out << "set noautoindent\n";
+            out << "set expandtab\n";
+            out << "set tabstop=4\n";
+            out << "set shiftwidth=4\n";
+            out << "set nominimap\n";
+            out << "set relativenumber\n";
+        }
+
+        printf("Initialized pZep configuration at %s\n", pzepDir.string().c_str());
+        return 0;
+    }
+
     // Handle command-line flags before loading any files
     for (int i = 1; i < argc; i++)
     {
