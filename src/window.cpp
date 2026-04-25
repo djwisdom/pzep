@@ -188,7 +188,12 @@ void ZepWindow::UpdateAirline()
     m_airline.leftBoxes.push_back(AirBox{ std::to_string(int(((float)font.GetPixelHeight() / GetEditor().GetDisplay().GetDefaultTextSize()) * 100.0f)) + "%", m_pBuffer->GetTheme().GetColor(ThemeColor::TabActive) });
 
     auto cursor = BufferToDisplay();
-    m_airline.leftBoxes.push_back(AirBox{ m_pBuffer->GetDisplayName(), FilterActiveColor(m_pBuffer->GetTheme().GetColor(ThemeColor::AirlineBackground)) });
+    std::string bufferName = m_pBuffer->GetDisplayName();
+    if (m_pBuffer->HasFileFlags(FileFlags::Dirty))
+    {
+        bufferName += " +";
+    }
+    m_airline.leftBoxes.push_back(AirBox{ bufferName, FilterActiveColor(m_pBuffer->GetTheme().GetColor(ThemeColor::AirlineBackground)) });
     // Display 1-based line:column (Vim style)
     m_airline.leftBoxes.push_back(AirBox{ std::to_string(cursor.y + 1) + ":" + std::to_string(cursor.x + 1), m_pBuffer->GetTheme().GetColor(ThemeColor::TabActive) });
 

@@ -144,6 +144,9 @@ ZepDisplay_Raylib::ZepDisplay_Raylib(int width, int height)
         m_defaultFont = GetFontDefault();
     }
 
+    // Use bilinear filtering for smoother text (crisper than point sampling)
+    SetTextureFilter(m_defaultFont.texture, TEXTURE_FILTER_BILINEAR);
+
     // Create default font entry
     m_spDefaultFont = std::make_shared<ZepFont_Raylib>(*this, m_defaultFont, 16);
     printf("INFO: FONT: ZepFont_Raylib created with m_pixelHeight=16\n");
