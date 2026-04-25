@@ -2376,8 +2376,8 @@ void ZepWindow::MoveCursorY(int yDistance, LineLocation clampLocation)
     {
         // The line is empty (e.g. a filler line, or a newly created empty line).
         // Just move the cursor to the start of it.
-        m_bufferCursor = GlyphIterator(m_pBuffer, line.lineByteRange.first);
-        m_cursorMoved = true;
+        GlyphIterator newItr(m_pBuffer, line.lineByteRange.first);
+        SetBufferCursor(newItr);
         GetEditor().ResetCursorTimer();
         m_pBuffer->SetLastEditLocation(m_bufferCursor);
         return;
@@ -2415,11 +2415,8 @@ void ZepWindow::MoveCursorY(int yDistance, LineLocation clampLocation)
         break;
     }
 
-    m_bufferCursor = cursorItr;
-    m_cursorMoved = true;
-
+    SetBufferCursor(cursorItr);
     GetEditor().ResetCursorTimer();
-
     m_pBuffer->SetLastEditLocation(m_bufferCursor);
 }
 
