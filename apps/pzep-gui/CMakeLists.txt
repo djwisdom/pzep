@@ -5,21 +5,21 @@ project(pzep-gui)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(raylib QUIET)
-
-if(WIN32)
-    set(RAYLIB_INCLUDE "C:/vcpkg/installed/x64-windows/include")
-    set(RAYLIB_LIB "C:/vcpkg/installed/x64-windows/lib")
+# raylib is already found by top-level CMake; just use it
+if(NOT TARGET raylib)
+    find_package(raylib CONFIG REQUIRED)
 endif()
 
 if(WIN32)
     add_executable(pzep-gui WIN32
         main.cpp
+        version_dialog.cpp
         ../../src/raylib/display_raylib.cpp
     )
 else()
     add_executable(pzep-gui
         main.cpp
+        version_dialog.cpp
         ../../src/raylib/display_raylib.cpp
     )
 endif()
@@ -28,17 +28,17 @@ target_include_directories(pzep-gui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/raylib
-    ${RAYLIB_INCLUDE}
     ${CMAKE_BINARY_DIR}
 )
 
 target_link_libraries(pzep-gui PRIVATE
-    ${RAYLIB_LIB}/raylib.lib
-    opengl32
-    gdi32
-    winmm
-    user32
     Zep
+    raylib
+    # Windows system libs that raylib may need
+    $<$<PLATFORM_ID:Windows>:opengl32>
+    $<$<PLATFORM_ID:Windows>:gdi32>
+    $<$<PLATFORM_ID:Windows>:winmm>
+    $<$<PLATFORM_ID:Windows>:user32>
 )
 
 if(WIN32)
@@ -49,26 +49,18 @@ if(WIN32)
     )
     target_compile_definitions(pzep-gui PRIVATE _CRT_SECURE_NO_WARNINGS)
     
-    # Copy DLLs to output directory after build
-    add_custom_command(TARGET pzep-gui POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:pzep-gui>/plugins
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${RAYLIB_LIB}/../bin/raylib.dll
-            $<TARGET_FILE_DIR:pzep-gui>/
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${RAYLIB_LIB}/../bin/glfw3.dll
-            $<TARGET_FILE_DIR:pzep-gui>/
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${RAYLIB_LIB}/../bin/freetype.dll
-            $<TARGET_FILE_DIR:pzep-gui>/
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${RAYLIB_LIB}/../bin/libpng16.dll
-            $<TARGET_FILE_DIR:pzep-gui>/
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${RAYLIB_LIB}/../bin/zlib1.dll
-            $<TARGET_FILE_DIR:pzep-gui>/
-        COMMENT "Copying Raylib dependencies to output directory"
-    )
+    # Copy raylib DLL to output directory if using dynamic build
+    if(TARGET raylib)
+        get_target_property(RAYLIB_TYPE raylib TYPE)
+        if(RAYLIB_TYPE STREQUAL "SHARED_LIBRARY")
+            add_custom_command(TARGET pzep-gui POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:raylib>
+                    $<TARGET_FILE_DIR:pzep-gui>/
+                COMMENT "Copying raylib.dll to output directory"
+            )
+        endif()
+    endif()
 endif()
 
 message(STATUS "pZep-GUI built")

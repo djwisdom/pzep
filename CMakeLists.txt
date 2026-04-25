@@ -37,7 +37,7 @@ endif()
 
 project(Zep
     LANGUAGES CXX C
-    VERSION 0.5.44
+    VERSION 0.5.46
 )
 
 # Version components for use in code
@@ -46,6 +46,34 @@ add_compile_definitions(
     ZEP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
     ZEP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
 )
+
+# ============================================================
+# Find raylib (display backend)
+# ============================================================
+# Try config mode first (vcpkg, system install)
+find_package(raylib CONFIG QUIET)
+
+if(NOT raylib_FOUND)
+    # Fallback: allow VCPKG_INSTALL_DIR to be set, with a common default
+    set(VCPKG_INSTALL_DIR "C:/vcpkg/installed/x64-windows" CACHE PATH "Path to vcpkg installed directory (e.g., C:/vcpkg/installed/x64-windows)")
+    if(VCPKG_INSTALL_DIR)
+        set(RAYLIB_INCLUDE "${VCPKG_INSTALL_DIR}/include")
+        set(RAYLIB_LIB "${VCPKG_INSTALL_DIR}/lib")
+        if(EXISTS "${RAYLIB_INCLUDE}/raylib.h" AND EXISTS "${RAYLIB_LIB}/raylib.lib")
+            message(STATUS "Found raylib via VCPKG_INSTALL_DIR: ${VCPKG_INSTALL_DIR}")
+            add_library(raylib STATIC IMPORTED)
+            set_target_properties(raylib PROPERTIES
+                IMPORTED_LOCATION "${RAYLIB_LIB}/raylib.lib"
+                INTERFACE_INCLUDE_DIRECTORIES "${RAYLIB_INCLUDE}"
+            )
+            set(raylib_FOUND TRUE)
+        endif()
+    endif()
+endif()
+
+if(NOT raylib_FOUND)
+    message(FATAL_ERROR "raylib not found. Install raylib (e.g., via vcpkg) or set VCPKG_INSTALL_DIR to point to raylib installation.")
+endif()
 
 # Find Lua if enabled
 if(ENABLE_LUA_REPL)

@@ -107,6 +107,9 @@ LIST(APPEND SRC_INCLUDE ${ZEP_ROOT}/src ${ZEP_ROOT}/src/mcommon)
  add_library(Zep STATIC ${SOURCES})
  add_library(Zep::Zep ALIAS Zep)
 
+ # Link raylib (display backend) - target provided by top-level CMake
+ target_link_libraries(Zep PRIVATE raylib)
+
  # Ensure architecture macro is defined for Windows headers
  if(MSVC)
      if(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -126,6 +129,9 @@ target_include_directories(Zep
     PUBLIC
         $<INSTALL_INTERFACE:include>
       )
+
+# Link raylib (display backend) - target provided by top-level CMake
+target_link_libraries(Zep PRIVATE raylib)
 
 if (TARGET_LINUX)
 target_link_libraries(Zep

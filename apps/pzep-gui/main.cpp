@@ -10,10 +10,16 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 
 using namespace Zep;
+
+// Forward declarations for version dialog functions
+void ShowVersionDialog();
+void ShowHelpDialog();
+void ShowInfoDialog();
 
 namespace
 {
@@ -60,45 +66,22 @@ int GetModifiers()
 
 int main(int argc, char* argv[])
 {
-    // Handle --version flag
+    // Handle command-line flags before loading any files
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--version") == 0)
         {
-            printf("pZep - Vim-like editor %d.%d.%d (%.11s, compiled %.8s)\n",
-                ZEP_VERSION_MAJOR, ZEP_VERSION_MINOR, ZEP_VERSION_PATCH,
-                __DATE__, __TIME__);
-#ifdef _WIN64
-            printf("\nMS-Windows 64-bit raylib version with plugin support");
-#else
-            printf("\nPlatform raylib version with plugin support");
-#endif
-            printf("\nCompiled by ");
-#ifdef _MSC_VER
-            printf("MSVC %d", _MSC_FULL_VER);
-#else
-            printf("unknown");
-#endif
-            printf("\n\nFeatures included (+) or not (-):");
-            printf("\n+vim-mode");
-            printf("\n+repl-support");
-            printf("\n+syntax-highlighting");
-            printf("\n+line-numbers");
-            printf("\n+statusline");
-            printf("\n+minimap");
-            printf("\n+git-integration");
-            printf("\n+plugin-support");
-            printf("\n+raylib-display");
-            printf("\n+multi-buffer");
-            printf("\n\nsystem pzeprc file: \"$PZEP\\pzeprc\"");
-            printf("\nuser pzeprc file: \"$PZEP\\_pzeprc\"");
-            printf("\n\nCompilation: cmake");
-#ifdef _MSC_VER
-            printf(" MSVC %d", _MSC_FULL_VER);
-#endif
-            printf(" CXXFLAGS: /DWIN32 /D_WINDOWS /GR /EHsc");
-            printf("\nLinking: link /nologo /opt:ref /LTCG");
-            printf("\n");
+            ShowVersionDialog();
+            return 0;
+        }
+        if (strcmp(argv[i], "--help") == 0)
+        {
+            ShowHelpDialog();
+            return 0;
+        }
+        if (strcmp(argv[i], "--info") == 0)
+        {
+            ShowInfoDialog();
             return 0;
         }
     }
@@ -324,8 +307,8 @@ int main(int argc, char* argv[])
                         {
                             mode->AddKeyPress(1, mod); // ESCAPE - return to normal mode
                         }
-                        // F11 (292) - toggle fullscreen
-                        else if (key == 292)
+                        // F11 (300) - toggle fullscreen
+                        else if (key == 300)
                         {
                             display.ToggleFullscreen();
                         }
