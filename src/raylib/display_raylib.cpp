@@ -115,6 +115,27 @@ ZepDisplay_Raylib::ZepDisplay_Raylib(int width, int height)
     // Georgian (1424-1516)
     for (int c = 1424; c <= 1516; ++c)
         cpset.insert(c);
+    // Arabic (1536-1791)
+    for (int c = 1536; c <= 1791; ++c)
+        cpset.insert(c);
+    // Arabic Supplement (1872-1919)
+    for (int c = 1872; c <= 1919; ++c)
+        cpset.insert(c);
+    // Thaana (1808-1871)
+    for (int c = 1808; c <= 1871; ++c)
+        cpset.insert(c);
+    // Devanagari (2304-2431)
+    for (int c = 2304; c <= 2431; ++c)
+        cpset.insert(c);
+    // Thai (3584-3711)
+    for (int c = 3584; c <= 3711; ++c)
+        cpset.insert(c);
+    // Currency Symbols (U+20A0–U+20CF) — 8352-8383
+    for (int c = 8352; c <= 8383; ++c)
+        cpset.insert(c);
+    // Enclosed Alphanumerics (12800-13055)
+    for (int c = 12800; c <= 13055; ++c)
+        cpset.insert(c);
     // Box Drawing (9472-9599) — for line art
     for (int c = 9472; c <= 9599; ++c)
         cpset.insert(c);
