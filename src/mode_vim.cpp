@@ -6,6 +6,7 @@
 #include "zep/commands_terminal.h"
 #include "zep/commands_tutor.h"
 #include "zep/editor.h"
+#include "zep/filesystem.h"
 #include "zep/git.h"
 #include "zep/keymap.h"
 #include "zep/mode_search.h"
@@ -917,6 +918,12 @@ public:
     }
 };
 
+// ============================================================================
+// :e[dit] {file} -- Edit file in current window
+// Vim behavior: Load the file into the current window, replacing the current
+// buffer's contents. If the file is already open in another buffer, switch
+// to that buffer. Does NOT split the screen.
+// ============================================================================
 class ZepExCommand_Edit : public ZepExCommand
 {
 public:
@@ -939,10 +946,23 @@ public:
         }
 
         fs::path filePath = args[1];
+        // Get or create the buffer for the file
         auto pBuffer = GetEditor().GetFileBuffer(filePath);
-        if (pBuffer)
+        if (!pBuffer)
         {
-            GetEditor().EnsureWindow(*pBuffer);
+            GetEditor().SetCommandText("E484: Cannot open file");
+            return;
+        }
+
+        // Switch the active window to this buffer (no split)
+        auto pTab = GetEditor().GetActiveTabWindow();
+        if (!pTab)
+            return;
+
+        auto pActiveWindow = pTab->GetActiveWindow();
+        if (pActiveWindow)
+        {
+            pActiveWindow->SetBuffer(pBuffer);
         }
     }
 };
@@ -1073,6 +1093,11 @@ public:
     }
 };
 
+// ============================================================================
+// :sp[lit] [file] -- Split window horizontally
+// Vim behavior: Split current window horizontally. If [file] given, load it
+// in the new window. Otherwise, show current buffer in the new window.
+// ============================================================================
 class ZepExCommand_Split : public ZepExCommand
 {
 public:
@@ -1100,16 +1125,25 @@ public:
         }
         else
         {
-            pBuffer = GetEditor().GetEmptyBuffer("Untitled");
+            // No filename: split and show current buffer in new window
+            pBuffer = GetEditor().GetActiveBuffer();
+            if (!pBuffer)
+                return;
         }
 
         if (pBuffer)
         {
+            // VBox = vertical box = children stacked vertically = horizontal split
             pTab->AddWindow(pBuffer, nullptr, RegionLayoutType::VBox);
         }
     }
 };
 
+// ============================================================================
+// :vsp[lit] [file] -- Split window vertically (side-by-side)
+// Vim behavior: Split current window vertically. If [file] given, load it
+// in the new window. Otherwise, show current buffer in the new window.
+// ============================================================================
 class ZepExCommand_VSplit : public ZepExCommand
 {
 public:
@@ -1138,7 +1172,10 @@ public:
         }
         else
         {
-            pBuffer = pEditor->GetEmptyBuffer("Untitled");
+            // No filename: split and show current buffer in new window
+            pBuffer = pEditor->GetActiveBuffer();
+            if (!pBuffer)
+                return;
         }
 
         if (pBuffer)
@@ -1147,6 +1184,109 @@ public:
             auto pParent = pTab->GetActiveWindow();
             pTab->AddWindow(pBuffer, pParent, RegionLayoutType::HBox);
         }
+    }
+};
+
+// ============================================================================
+// :r[ead] {file} -- Read file and insert after current line
+// Vim behavior: Read the contents of {file} and insert them after the cursor
+// line in the current buffer. If the file cannot be read, show an error.
+// ============================================================================
+// ============================================================================
+// :r[ead] {file} -- Read file and insert after current line
+// Vim behavior: Read the contents of {file} and insert them after the cursor
+// line in the current buffer. If the file cannot be read, show an error.
+// ============================================================================
+// ============================================================================
+// :r[ead] {file} -- Read file and insert after current line
+// Vim behavior: Read the contents of {file} and insert them after the cursor
+// line in the current buffer. If the file cannot be read, show an error.
+// ============================================================================
+class ZepExCommand_Read : public ZepExCommand
+{
+public:
+    ZepExCommand_Read(ZepEditor& editor)
+        : ZepExCommand(editor)
+    {
+    }
+
+    const char* ExCommandName() const override
+    {
+        return "r";
+    }
+
+    void Run(const std::vector<std::string>& args) override
+    {
+        if (args.size() < 2)
+        {
+            GetEditor().SetCommandText("E484: No filename given");
+            return;
+        }
+
+        fs::path filePath = args[1];
+        auto& fs = GetEditor().GetFileSystem();
+
+        // Check file exists
+        if (!fs.Exists(filePath))
+        {
+            GetEditor().SetCommandText("E484: Cannot open file \"" + filePath.string() + "\"");
+            return;
+        }
+
+        // Read file contents
+        std::string content;
+        try
+        {
+            content = fs.Read(filePath);
+        }
+        catch (...)
+        {
+            GetEditor().SetCommandText("E484: Cannot read file");
+            return;
+        }
+
+        // Get active window and buffer
+        auto pTab = GetEditor().GetActiveTabWindow();
+        if (!pTab)
+        {
+            GetEditor().SetCommandText("E444: Cannot get active window");
+            return;
+        }
+        auto pWindow = pTab->GetActiveWindow();
+        if (!pWindow)
+        {
+            GetEditor().SetCommandText("E444: Cannot get active window");
+            return;
+        }
+        ZepBuffer* pBuffer = &pWindow->GetBuffer();
+
+        // Determine insertion point: after current line (like Vim)
+        GlyphIterator cursor = pWindow->GetBufferCursor();
+        long currentLine = pBuffer->GetBufferLine(cursor);
+        long insertLine = currentLine + 1;
+
+        GlyphIterator insertPos;
+        if (insertLine >= pBuffer->GetLineCount())
+        {
+            insertPos = pBuffer->End();
+        }
+        else
+        {
+            ByteRange range;
+            if (pBuffer->GetLineOffsets(insertLine, range))
+            {
+                insertPos = GlyphIterator(pBuffer, static_cast<unsigned long>(range.first));
+            }
+            else
+            {
+                insertPos = pBuffer->End();
+            }
+        }
+
+        ChangeRecord record;
+        pBuffer->Insert(insertPos, content, record);
+        // Note: Insert updates buffer state; undo may not be implemented yet
+        GetEditor().SetCommandText("Read " + filePath.string());
     }
 };
 
@@ -1548,6 +1688,7 @@ void RegisterVimExCommands(ZepEditor& editor)
     editor.RegisterExCommand(std::make_shared<ZepExCommand_BufferGoto>(editor));
     editor.RegisterExCommand(std::make_shared<ZepExCommand_Split>(editor));
     editor.RegisterExCommand(std::make_shared<ZepExCommand_VSplit>(editor));
+    editor.RegisterExCommand(std::make_shared<ZepExCommand_Read>(editor));
     editor.RegisterExCommand(std::make_shared<ZepExCommand_TabNew>(editor));
     editor.RegisterExCommand(std::make_shared<ZepExCommand_TabClose>(editor));
     editor.RegisterExCommand(std::make_shared<ZepExCommand_Set>(editor));
