@@ -261,6 +261,31 @@ bool ZepDisplay_Raylib::ShouldClose() const
     return WindowShouldClose();
 }
 
+void ZepDisplay_Raylib::ToggleFullscreen()
+{
+    if (IsWindowFullscreen())
+    {
+        SetWindowState(FLAG_WINDOW_UNDECORATED); // Remove fullscreen flag
+        SetWindowSize(m_lastWindowedWidth, m_lastWindowedHeight);
+        // Center the window when exiting fullscreen
+        int screenWidth = GetMonitorWidth(GetCurrentMonitor());
+        int screenHeight = GetMonitorHeight(GetCurrentMonitor());
+        SetWindowPosition((screenWidth - m_lastWindowedWidth) / 2, (screenHeight - m_lastWindowedHeight) / 2);
+    }
+    else
+    {
+        // Save current windowed size
+        m_lastWindowedWidth = GetScreenWidth();
+        m_lastWindowedHeight = GetScreenHeight();
+        // Enter fullscreen on current monitor
+        SetWindowState(FLAG_WINDOW_UNDECORATED | FLAG_FULLSCREEN_MODE);
+        // Size to match the monitor
+        int screenWidth = GetMonitorWidth(GetCurrentMonitor());
+        int screenHeight = GetMonitorHeight(GetCurrentMonitor());
+        SetWindowSize(screenWidth, screenHeight);
+    }
+}
+
 void ZepDisplay_Raylib::BeginFrame()
 {
     BeginDrawing();

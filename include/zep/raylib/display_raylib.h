@@ -52,8 +52,9 @@ public:
     std::string GetClipboardText() const override;
     void SetClipboardText(const std::string& text) override;
 
-    // Raylib-specific methods
+    // Raylib-specific methods (not overrides)
     bool ShouldClose() const;
+    void ToggleFullscreen();
     void BeginFrame();
     void EndFrame();
     void ClearBackground(const NVec4f& col);
@@ -80,6 +81,8 @@ private:
     ::Font m_defaultFont;
     NRectf m_clipRect;
     bool m_clipEnabled;
+    int m_lastWindowedWidth = 1024;
+    int m_lastWindowedHeight = 768;
 };
 
 } // namespace Zep
