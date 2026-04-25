@@ -123,7 +123,6 @@ target_include_directories(Zep
         ${SRC_INCLUDE}
         ${CMAKE_BINARY_DIR}
         ${ZEP_ROOT}/include
-        C:/Users/casse/github/vcpkg/installed/x64-windows/include
     PUBLIC
         $<INSTALL_INTERFACE:include>
       )
