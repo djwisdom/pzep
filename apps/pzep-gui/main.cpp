@@ -312,6 +312,13 @@ int main(int argc, char* argv[])
                         {
                             display.ToggleFullscreen();
                         }
+                        // F12 (301) - toggle minimap
+                        else if (key == 301)
+                        {
+                            editor.GetConfig().showMinimap = !editor.GetConfig().showMinimap;
+                            editor.GetDisplay().SetLayoutDirty(true);
+                            editor.SetCommandText(editor.GetConfig().showMinimap ? "minimap on" : "nominimap");
+                        }
                         else
                         {
                             auto it = g_keyMap.find(key);

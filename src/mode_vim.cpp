@@ -1394,7 +1394,8 @@ private:
         str << "  autoindent: " << (ZTestFlags(GetEditor().GetFlags(), ZepEditorFlags::AutoIndent) ? "on" : "off") << "\n";
         str << "   expandtab: " << (IsInsertTabsEnabled() ? "off" : "on") << "\n"; // insert spaces (no expandtab) -> InsertTabs = false -> expandtab
         str << "    tabstop: " << GetEditor().GetConfig().tabStop << "\n";
-        str << "  shiftwidth: " << GetEditor().GetConfig().shiftWidth;
+        str << "  shiftwidth: " << GetEditor().GetConfig().shiftWidth << "\n";
+        str << "    minimap: " << (GetEditor().GetConfig().showMinimap ? "on" : "off") << "\n";
 
         GetEditor().SetCommandText(str.str());
     }
@@ -1434,6 +1435,10 @@ private:
         else if (opt == "shiftwidth")
         {
             str << "shiftwidth=" << GetEditor().GetConfig().shiftWidth;
+        }
+        else if (opt == "minimap")
+        {
+            str << (GetEditor().GetConfig().showMinimap ? "minimap" : "nominimap");
         }
         else
         {
@@ -1492,6 +1497,14 @@ private:
         else if (opt == "noexpandtab")
         {
             SetInsertTabs(true); // noexpandtab = use tabs -> InsertTabs = true
+        }
+        else if (opt == "minimap")
+        {
+            SetMinimap(true);
+        }
+        else if (opt == "nominimap")
+        {
+            SetMinimap(false);
         }
         else if (opt.find('=') != std::string::npos)
         {
@@ -1617,6 +1630,12 @@ private:
         catch (...)
         {
         }
+    }
+
+    void SetMinimap(bool enable)
+    {
+        GetEditor().GetConfig().showMinimap = enable;
+        GetEditor().GetDisplay().SetLayoutDirty(true);
     }
 };
 
