@@ -478,11 +478,13 @@ void ZepEditor::ApplyPZepRCOption(const std::string& opt)
     {
         m_config.showMinimap = true;
         GetDisplay().SetLayoutDirty(true);
+        Broadcast(std::make_shared<ZepMessage>(Msg::ConfigChanged));
     }
     else if (opt == "nominimap")
     {
         m_config.showMinimap = false;
         GetDisplay().SetLayoutDirty(true);
+        Broadcast(std::make_shared<ZepMessage>(Msg::ConfigChanged));
     }
     else if (opt.find('=') != std::string::npos)
     {

@@ -8,6 +8,7 @@
 #include "zep/repl_plugin_loader.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
