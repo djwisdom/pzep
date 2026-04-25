@@ -219,6 +219,35 @@ install(DIRECTORY ${ZEP_ROOT}/include/zep
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
+# ============================================================
+# ThreadSanitizer Test (TSAN) for REPL concurrency safety
+# ============================================================
+# This lightweight test validates that the REPL providers can be safely
+# initialized and destroyed from multiple threads. It does not execute
+# full REPL code but tests core initialization patterns.
+add_executable(tsan_test tsan_test.cpp)
+target_link_libraries(tsan_test PRIVATE Zep)
+
+# Enable ThreadSanitizer if compiler supports it
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-fsanitize=thread" TSAN_SUPPORTED_GCC_CLANG)
+if(TSAN_SUPPORTED_GCC_CLANG)
+    target_compile_options(tsan_test PRIVATE -fsanitize=thread -g)
+    target_link_options(tsan_test PRIVATE -fsanitize=thread -g)
+elseif(MSVC)
+    # MSVC supports /fsanitize=thread in VS 2019 16.9+
+    target_compile_options(tsan_test PRIVATE /fsanitize=thread)
+    target_link_options(tsan_test PRIVATE /fsanitize=thread)
+endif()
+
+# Custom target to run TSAN tests (slow - requires TSAN runtime)
+add_custom_target(run_tsan
+    COMMAND $<TARGET_FILE:tsan_test>
+    DEPENDS tsan_test
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Running ThreadSanitizer tests for REPL concurrency..."
+    VERBATIM
+)
 
 # For IDE
 source_group (Zep\\common REGULAR_EXPRESSION "src/mcommon/.*")
