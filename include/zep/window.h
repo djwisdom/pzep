@@ -40,6 +40,10 @@ struct SpanInfo
     NVec2f lineWidgetHeights;
     ZepFont* pFont = nullptr;
 
+    // Fold placeholder state
+    bool isFoldPlaceholder = false; // This span represents a closed fold
+    int foldHiddenLineCount = 0; // Number of lines hidden by this fold
+
     float FullLineHeightPx() const
     {
         return padding.x + padding.y + lineTextSizePx.y;

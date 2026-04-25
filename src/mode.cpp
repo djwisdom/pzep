@@ -965,6 +965,7 @@ bool ZepMode::GetCommand(CommandContext& context)
         if (endLine > startLine)
         {
             buffer.GetFold().CreateFoldFromSelection(startLine, endLine);
+            GetEditor().GetDisplay().SetLayoutDirty(true);
         }
         return true;
     }
@@ -972,39 +973,46 @@ bool ZepMode::GetCommand(CommandContext& context)
     {
         auto line = buffer.GetBufferLine(GetCurrentWindow()->GetBufferCursor());
         buffer.GetFold().RemoveFold(line);
+        GetEditor().GetDisplay().SetLayoutDirty(true);
         return true;
     }
     else if (mappedCommand == id_FoldDeleteAll)
     {
         buffer.GetFold().RemoveAllFolds();
+        GetEditor().GetDisplay().SetLayoutDirty(true);
         return true;
     }
     else if (mappedCommand == id_FoldOpen)
     {
         auto line = buffer.GetBufferLine(GetCurrentWindow()->GetBufferCursor());
         buffer.GetFold().OpenFold(line);
+        GetEditor().GetDisplay().SetLayoutDirty(true);
         return true;
     }
     else if (mappedCommand == id_FoldOpenAll)
     {
         buffer.GetFold().OpenAllFolds();
+        GetEditor().GetDisplay().SetLayoutDirty(true);
         return true;
     }
     else if (mappedCommand == id_FoldClose)
     {
         auto line = buffer.GetBufferLine(GetCurrentWindow()->GetBufferCursor());
         buffer.GetFold().CloseFold(line);
+        GetEditor().GetDisplay().SetLayoutDirty(true);
         return true;
     }
     else if (mappedCommand == id_FoldCloseAll)
     {
         buffer.GetFold().CloseAllFolds();
+        GetEditor().GetDisplay().SetLayoutDirty(true);
         return true;
     }
     else if (mappedCommand == id_FoldToggle)
     {
         auto line = buffer.GetBufferLine(GetCurrentWindow()->GetBufferCursor());
         buffer.GetFold().ToggleFold(line);
+        GetEditor().GetDisplay().SetLayoutDirty(true);
         return true;
     }
     else if (mappedCommand == id_MultiCursorAdd)

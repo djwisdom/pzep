@@ -186,14 +186,36 @@ void ZepFold::GetVisibleLines(long bufferLine, long& outStart, long& outEnd) con
 long ZepFold::GetVisibleLineCount() const
 {
     long lineCount = m_buffer.GetLineCount();
-    long hidden = 0;
+    if (lineCount == 0)
+        return 0;
 
-    for (auto& pFold : m_folds)
+    // Collect closed folds, sorted by startLine
+    std::vector<const FoldRegion*> closed;
+    for (const auto& p : m_folds)
     {
-        if (!pFold->isOpen)
+        if (!p->isOpen)
+            closed.push_back(p.get());
+    }
+    std::sort(closed.begin(), closed.end(),
+        [](const FoldRegion* a, const FoldRegion* b) { return a->startLine < b->startLine; });
+
+    long hidden = 0;
+    long currentHiddenEnd = -1;
+    for (const auto* f : closed)
+    {
+        // If this fold starts after the current hidden region, it's a new disjoint region
+        if (f->startLine > currentHiddenEnd)
         {
-            hidden += pFold->endLine - pFold->startLine;
+            hidden += (f->endLine - f->startLine);
+            currentHiddenEnd = f->endLine;
         }
+        else if (f->endLine > currentHiddenEnd)
+        {
+            // Overlapping (nested) region that extends further; add the extra hidden lines
+            hidden += (f->endLine - currentHiddenEnd);
+            currentHiddenEnd = f->endLine;
+        }
+        // else fully nested within already-counted region: skip
     }
 
     return lineCount - hidden;
@@ -232,12 +254,19 @@ void ZepFold::RebuildFromIndentation()
                 break;
         }
 
+        // If indent increased from previous line and we have a preceding line tracked,
+        // close the fold for that preceding line by setting its end to current line - 1.
         if (indent > currentIndent && !indentStack.empty())
         {
             auto& top = indentStack.top();
-            top.second = line - 1;
+            // Only update if end hasn't been closed yet (indicates active open fold)
+            if (top.second == lineCount)
+            {
+                top.second = line - 1;
+            }
         }
 
+        // If indent decreased, pop and emit folds for all entries whose level >= current indent
         if (indent < currentIndent)
         {
             while (!indentStack.empty() && indentStack.top().second >= indent)
@@ -258,14 +287,16 @@ void ZepFold::RebuildFromIndentation()
             }
         }
 
+        // If indent increased, push a new potential fold starting at this line
         if (indent > currentIndent)
         {
-            indentStack.push({ line, (int)lineCount });
+            indentStack.push({ line, lineCount });
         }
 
         currentIndent = indent;
     }
 
+    // Close any remaining open folds at EOF
     while (!indentStack.empty())
     {
         auto fold = indentStack.top();
@@ -282,6 +313,74 @@ void ZepFold::RebuildFromIndentation()
             m_folds.push_back(std::move(pFold));
         }
     }
+}
+
+int indent = 0;
+for (char c : lineText)
+{
+    if (c == '\t')
+        indent += 4;
+    else if (c == ' ')
+        indent++;
+    else
+        break;
+}
+
+if (indent > currentIndent && !indentStack.empty())
+{
+    // The previous line starts a new fold; update its end to current-1
+    auto& top = indentStack.top();
+    // Only set end if it hasn't been set yet (top.second == lineCount means unclosed)
+    if (top.second == lineCount)
+    {
+        top.second = line - 1;
+    }
+}
+
+if (indent < currentIndent)
+{
+    while (!indentStack.empty() && indentStack.top().second >= indent)
+    {
+        auto fold = indentStack.top();
+        indentStack.pop();
+
+        if (fold.second > fold.first)
+        {
+            auto pFold = std::make_unique<FoldRegion>();
+            pFold->startLine = fold.first;
+            pFold->endLine = fold.second;
+            pFold->method = FoldMethod::Indent;
+            pFold->indentLevel = fold.second;
+            pFold->isOpen = true;
+            m_folds.push_back(std::move(pFold));
+        }
+    }
+}
+
+if (indent > currentIndent)
+{
+    indentStack.push({ line, (int)lineCount });
+}
+
+currentIndent = indent;
+}
+
+while (!indentStack.empty())
+{
+    auto fold = indentStack.top();
+    indentStack.pop();
+
+    if (fold.second > fold.first)
+    {
+        auto pFold = std::make_unique<FoldRegion>();
+        pFold->startLine = fold.first;
+        pFold->endLine = fold.second;
+        pFold->method = FoldMethod::Indent;
+        pFold->indentLevel = fold.second;
+        pFold->isOpen = true;
+        m_folds.push_back(std::move(pFold));
+    }
+}
 }
 
 void ZepFold::RebuildFromSyntax()
