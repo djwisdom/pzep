@@ -37,7 +37,7 @@ endif()
 
 project(Zep
     LANGUAGES CXX C
-    VERSION 0.5.53
+    VERSION 0.5.54
 )
 
 # Version components for use in code

@@ -76,9 +76,12 @@ void DrawWelcomeScreen(ZepDisplay& display, ZepFont& font)
     Color overlay = { 0, 0, 0, 200 };
     DrawRectangle(0, 0, screenW, screenH, overlay);
 
+    // Build version string from compile-time defines
+    char versionStr[64];
+    snprintf(versionStr, sizeof(versionStr), "version %d.%d.%d", ZEP_VERSION_MAJOR, ZEP_VERSION_MINOR, ZEP_VERSION_PATCH);
+
     // Centered text lines
     const char* title = "pZep - a VIM-like editor. 'nuff said.";
-    const char* version = "version 0.5.49";
     const char* author = "by Dennis O. Esternon et al.";
     const char* tagline = "pZep is open source and freely distributable";
     const char* help1 = "type :q<Enter>       to exit";
@@ -86,7 +89,7 @@ void DrawWelcomeScreen(ZepDisplay& display, ZepFont& font)
 
     int fontSize = 24;
     auto titleSize = MeasureTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), title, fontSize, 1.0f);
-    auto versionSize = MeasureTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), version, fontSize, 1.0f);
+    auto versionSize = MeasureTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), versionStr, fontSize, 1.0f);
     auto authorSize = MeasureTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), author, fontSize, 1.0f);
     int smallSize = 20;
     auto taglineSize = MeasureTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), tagline, smallSize, 1.0f);
@@ -102,7 +105,7 @@ void DrawWelcomeScreen(ZepDisplay& display, ZepFont& font)
     DrawTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), title, { x, startY }, fontSize, 1.0f, WHITE);
 
     x = centerX - versionSize.x * 0.5f;
-    DrawTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), version, { x, startY + lineSpacing }, fontSize, 1.0f, LIGHTGRAY);
+    DrawTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), versionStr, { x, startY + lineSpacing }, fontSize, 1.0f, LIGHTGRAY);
 
     x = centerX - authorSize.x * 0.5f;
     DrawTextEx(((ZepFont_Raylib*)&font)->GetRaylibFont(), author, { x, startY + lineSpacing * 2.0f }, fontSize, 1.0f, RAYWHITE);

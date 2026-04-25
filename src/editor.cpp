@@ -1544,10 +1544,28 @@ void ZepEditor::Display()
     auto screenPosYPx = m_commandRegion->rect.topLeftPx + NVec2f(0.0f, DPI_X(textBorder));
     for (int i = 0; i < commandSpace; i++)
     {
-        if (!commandLines[i].empty())
+        // Compute text size for this line
+        std::string lineText = commandLines[i];
+        auto textSize = uiFont.GetTextSize((const uint8_t*)lineText.c_str(), (const uint8_t*)lineText.c_str() + lineText.size());
+
+        // Draw the line
+        if (!lineText.empty())
         {
-            auto textSize = uiFont.GetTextSize((const uint8_t*)commandLines[i].c_str(), (const uint8_t*)commandLines[i].c_str() + commandLines[i].size());
-            m_pDisplay->DrawChars(uiFont, screenPosYPx, GetTheme().GetColor(ThemeColor::Text), (const uint8_t*)commandLines[i].c_str());
+            m_pDisplay->DrawChars(uiFont, screenPosYPx, GetTheme().GetColor(ThemeColor::Text), (const uint8_t*)lineText.c_str());
+        }
+
+        // If this is the last line and we're in Ex mode (command entry), draw a block cursor at end of text
+        bool isLastLine = (i == commandSpace - 1);
+        auto pGlobalMode = GetGlobalMode();
+        bool inExMode = pGlobalMode && pGlobalMode->GetEditorMode() == EditorMode::Ex;
+        if (isLastLine && inExMode)
+        {
+            float charWidth = uiFont.GetDefaultCharSize().x;
+            float cursorX = screenPosYPx.x + (textSize.x > 0 ? textSize.x : 0.0f);
+            float cursorY = screenPosYPx.y;
+            float cursorH = uiFont.GetPixelHeight();
+            m_pDisplay->DrawRectFilled(NRectf(NVec2f(cursorX, cursorY), NVec2f(cursorX + charWidth, cursorY + cursorH)),
+                GetTheme().GetColor(ThemeColor::CursorNormal));
         }
 
         screenPosYPx.y += uiFont.GetPixelHeight();
