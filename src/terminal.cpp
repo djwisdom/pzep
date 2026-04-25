@@ -325,6 +325,9 @@ void ZepTerminal::ReadOutputLoop()
             partial.erase(0, pos);
         }
     }
+
+    // Thread is exiting – mark terminal as no longer running
+    m_running = false;
 }
 
 void ZepTerminal::ProcessCSI(const std::string& seq)

@@ -327,7 +327,7 @@ int main(int argc, char* argv[])
                         // F11 (292) - toggle fullscreen
                         else if (key == 292)
                         {
-                            ToggleFullscreen();
+                            display.ToggleFullscreen();
                         }
                         else
                         {
