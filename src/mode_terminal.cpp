@@ -1,8 +1,16 @@
 #include "zep/mode_terminal.h"
+#include "zep/buffer.h"
 #include "zep/display.h"
 #include "zep/editor.h"
 #include "zep/tab_window.h"
 #include "zep/window.h"
+
+#include "zep/mcommon/logger.h"
+#include "zep/mcommon/string/stringutils.h"
+
+#include <algorithm>
+#include <cstdio>
+#include <sstream>
 
 namespace Zep
 {
@@ -49,6 +57,29 @@ void ZepMode_Terminal::PreDisplay(ZepWindow& window)
 
     // Update terminal buffer from terminal state
     m_terminal.UpdateBuffer();
+
+    // Sync editor cursor with terminal cursor position
+    auto& buffer = window.GetBuffer();
+    auto& state = m_terminal.GetState();
+    auto lineEnds = buffer.GetLineEnds();
+    long row = state.cursorRow;
+    if (row < 0)
+        row = 0;
+    if (!lineEnds.empty())
+    {
+        if (row >= long(lineEnds.size()))
+            row = long(lineEnds.size()) - 1;
+        ByteIndex lineStart = (row == 0) ? 0 : lineEnds[row - 1];
+        ByteIndex lineEnd = lineEnds[row];
+        long col = state.cursorCol;
+        long maxCol = long(lineEnd - lineStart) - 1; // last character position
+        if (col > maxCol)
+            col = maxCol;
+        if (col < 0)
+            col = 0;
+        GlyphIterator itr(&buffer, lineStart + col);
+        window.SetBufferCursor(itr);
+    }
 
     // If the terminal process has exited (shell closed), close this window
     if (!m_terminal.IsRunning())

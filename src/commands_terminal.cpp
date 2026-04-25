@@ -80,7 +80,8 @@ void ZepExCommand_Terminal::Run(const std::vector<std::string>& args)
     auto pWindow = pTab->AddWindow(pBuffer, nullptr, RegionLayoutType::VBox);
     if (pWindow)
     {
-        // Set appropriate window flags maybe?
+        // Hide minimap for terminal windows (cleaner UI)
+        pWindow->SetWindowFlags(pWindow->GetWindowFlags() | WindowFlags::HideMinimap);
     }
 
     // Switch to the terminal window
