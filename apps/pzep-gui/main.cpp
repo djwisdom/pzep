@@ -222,6 +222,7 @@ int main(int argc, char* argv[])
     auto configPath = editor.GetFileSystem().GetConfigPath();
     editor.LoadPZepRC(configPath / "pzeprc");
     editor.LoadPZepRC(configPath / "_pzeprc");
+    editor.LoadPZepRC(configPath / ".pzeprc");
 
     while (true)
     {
@@ -315,23 +316,16 @@ int main(int argc, char* argv[])
 
         display.BeginFrame();
 
-        // Draw welcome overlay if enabled
+        // Handle welcome screen dismissal (if enabled)
         if (editor.GetConfig().showWelcomeScreen)
         {
-            // Get the default font for drawing
-            ZepFont& font = display.GetFont(ZepTextType::Text);
-            DrawWelcomeScreen(display, font);
-
-            // Dismiss on any keypress or mouse click
+            // Dismiss on any keystroke
             int ch = GetCharPressed();
             int key = GetKeyPressed();
-            if (ch > 0 || key > 0 || IsMouseButtonDown(0) || IsMouseButtonDown(1) || IsMouseButtonDown(2))
+            if (ch > 0 || key > 0)
             {
                 editor.GetConfig().showWelcomeScreen = false;
             }
-
-            display.EndFrame();
-            continue; // Skip normal editor rendering this frame
         }
 
         // Handle Ctrl+Q to quit (alternative to :q)

@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <sstream>
 
 #include "zep/buffer.h"
@@ -11,6 +12,8 @@
 #include "zep/tab_window.h"
 #include "zep/theme.h"
 #include "zep/window.h"
+
+#include "config_app.h"
 
 #include "zep/mcommon/logger.h"
 #include "zep/mcommon/string/stringutils.h"
@@ -798,6 +801,7 @@ void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
 
         long startBufferLine = totalLines; // first buffer line number beyond EOF
         float currentY = bufferPosYPx;
+        ByteIndex eofPos = m_pBuffer->End().Index();
 
         for (long i = 0; i < needed; ++i)
         {
@@ -807,8 +811,8 @@ void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
             lineInfo->lineWidgetHeights = NVec2f(0.0f, 0.0f);
             lineInfo->bufferLineNumber = startBufferLine + i;
             lineInfo->spanLineIndex = spanLine + i;
-            lineInfo->lineByteRange.first = 0;
-            lineInfo->lineByteRange.second = 0;
+            lineInfo->lineByteRange.first = eofPos;
+            lineInfo->lineByteRange.second = eofPos;
             lineInfo->yOffsetPx = currentY + i * fullLineHeight;
             lineInfo->padding = topPadding;
             lineInfo->lineTextSizePx = NVec2f(0.0f, textHeight);
@@ -828,8 +832,8 @@ void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
             lineInfo->lineWidgetHeights = NVec2f(0.0f, 0.0f);
             lineInfo->bufferLineNumber = startBufferLine;
             lineInfo->spanLineIndex = spanLine;
-            lineInfo->lineByteRange.first = 0;
-            lineInfo->lineByteRange.second = 0;
+            lineInfo->lineByteRange.first = eofPos;
+            lineInfo->lineByteRange.second = eofPos;
             lineInfo->yOffsetPx = currentY;
             lineInfo->padding = topPadding;
             lineInfo->lineTextSizePx = NVec2f(0.0f, textHeight);
@@ -2179,123 +2183,167 @@ void ZepWindow::Display()
 
     DisplayLineNumbers();
 
+    if (!GetEditor().GetConfig().showWelcomeScreen)
     {
-        // Reset the last line pixel size
-        lastLinePx = NVec2f(0.0f);
-
-        TIME_SCOPE(DrawLine);
-        for (int displayPass = 0; displayPass < WindowPass::Max; displayPass++)
         {
-            for (long windowLine = m_visibleLineIndices.x; windowLine < m_visibleLineIndices.y; windowLine++)
+            // Reset the last line pixel size
+            lastLinePx = NVec2f(0.0f);
+
+            TIME_SCOPE(DrawLine);
+            for (int displayPass = 0; displayPass < WindowPass::Max; displayPass++)
             {
-                auto& lineInfo = *m_windowLines[windowLine];
-                if (!DisplayLine(lineInfo, displayPass))
+                for (long windowLine = m_visibleLineIndices.x; windowLine < m_visibleLineIndices.y; windowLine++)
                 {
-                    break;
+                    auto& lineInfo = *m_windowLines[windowLine];
+                    if (!DisplayLine(lineInfo, displayPass))
+                    {
+                        break;
+                    }
                 }
             }
         }
-    }
 
-    DisplayMarkerHints();
+        DisplayMarkerHints();
 
-    if (ZTestFlags(GetWindowFlags(), WindowFlags::GridStyle))
-    {
-        DisplayGridMarkers();
-    }
+        if (ZTestFlags(GetWindowFlags(), WindowFlags::GridStyle))
+        {
+            DisplayGridMarkers();
+        }
 
-    // Is the cursor on a tooltip row or mark?
-    if (m_toolTips.empty())
-    {
-        auto cursorLine = GetCursorLineInfo(BufferToDisplay().y);
+        // Is the cursor on a tooltip row or mark?
+        if (m_toolTips.empty())
+        {
+            auto cursorLine = GetCursorLineInfo(BufferToDisplay().y);
 
-        // If this marker has an associated tooltip, pop it up after a time delay
-        NVec2f pos, size;
-        GetCursorInfo(pos, size);
+            // If this marker has an associated tooltip, pop it up after a time delay
+            NVec2f pos, size;
+            GetCursorInfo(pos, size);
 
-        // Calculate our desired location for the tip.
-        auto tipPos = [&](RangeMarker& marker) {
-            NVec2f ret;
-            NVec2f linePx = GetSpanPixelRange(cursorLine);
-            if (marker.tipPos == ToolTipPos::RightLine)
-            {
-                ret = NVec2f(linePx.y, pos.y);
-            }
-            else
-            {
-                ret = NVec2f(linePx.x, pos.y);
-            }
-            return ret;
-        };
+            // Calculate our desired location for the tip.
+            auto tipPos = [&](RangeMarker& marker) {
+                NVec2f ret;
+                NVec2f linePx = GetSpanPixelRange(cursorLine);
+                if (marker.tipPos == ToolTipPos::RightLine)
+                {
+                    ret = NVec2f(linePx.y, pos.y);
+                }
+                else
+                {
+                    ret = NVec2f(linePx.x, pos.y);
+                }
+                return ret;
+            };
 
-        m_pBuffer->ForEachMarker(RangeMarkerType::All, Direction::Forward, GlyphIterator(m_pBuffer, cursorLine.lineByteRange.first), GlyphIterator(m_pBuffer, cursorLine.lineByteRange.second), [&](const std::shared_ptr<RangeMarker>& marker) {
-            if (marker->displayType == RangeMarkerDisplayType::Hidden)
-            {
+            m_pBuffer->ForEachMarker(RangeMarkerType::All, Direction::Forward, GlyphIterator(m_pBuffer, cursorLine.lineByteRange.first), GlyphIterator(m_pBuffer, cursorLine.lineByteRange.second), [&](const std::shared_ptr<RangeMarker>& marker) {
+                if (marker->displayType == RangeMarkerDisplayType::Hidden)
+                {
+                    return true;
+                }
+
+                auto sel = marker->GetRange();
+                if (marker->displayType & RangeMarkerDisplayType::CursorTip)
+                {
+                    if (m_bufferCursor.Index() >= sel.first && m_bufferCursor.Index() < sel.second)
+                    {
+                        PlaceToolTip(tipPos(*marker), marker->tipPos, 2, marker);
+                    }
+                }
+
+                if (marker->displayType & RangeMarkerDisplayType::CursorTipAtLine)
+                {
+                    if ((cursorLine.lineByteRange.first <= sel.first && cursorLine.lineByteRange.second > sel.first) || (cursorLine.lineByteRange.first <= sel.second && cursorLine.lineByteRange.second > sel.second))
+                    {
+                        PlaceToolTip(tipPos(*marker), marker->tipPos, 2, marker);
+                    }
+                }
                 return true;
-            }
-
-            auto sel = marker->GetRange();
-            if (marker->displayType & RangeMarkerDisplayType::CursorTip)
+            });
+        }
+        else
+        {
+            // No hanging tooltips if the markers on the page have gone
+            if (m_pBuffer->GetRangeMarkers(RangeMarkerType::Mark).empty())
             {
-                if (m_bufferCursor.Index() >= sel.first && m_bufferCursor.Index() < sel.second)
+                m_toolTips.clear();
+            }
+        }
+
+        // No tooltip, and we can show one, then ask for tooltips from any client that wants to show them
+        if (!m_tipDisabledTillMove && (timer_get_elapsed_seconds(m_toolTipTimer) > 0.5f) && m_toolTips.empty() && m_lastTipQueryPos != m_mouseHoverPos)
+        {
+            auto spMsg = std::make_shared<ToolTipMessage>(m_pBuffer, m_mouseHoverPos, m_mouseBufferLocation);
+            GetEditor().Broadcast(spMsg);
+            if (spMsg->handled && spMsg->spMarker != nullptr)
+            {
+                PlaceToolTip(NVec2f(m_mouseHoverPos.x, m_mouseHoverPos.y), spMsg->spMarker->tipPos, 1, spMsg->spMarker);
+            }
+            m_lastTipQueryPos = m_mouseHoverPos;
+        }
+
+        for (auto& toolTip : m_toolTips)
+        {
+            DisplayToolTip(toolTip.first, *toolTip.second);
+        }
+
+        display.SetClipRect(NRectf{});
+
+        if (!GetEditor().GetCommandText().empty() || (GetEditor().GetConfig().autoHideCommandRegion == false))
+        {
+            auto modeAirlines = GetBuffer().GetMode()->GetAirlines(*this);
+
+            // Airline and underline
+            display.DrawRectFilled(m_airlineRegion->rect, ModifyBackgroundColor(ThemeColor::AirlineBackground));
+
+            auto airHeight = GetEditor().GetDisplay().GetFont(ZepTextType::UI).GetPixelHeight();
+            auto border = 12.0f;
+
+            auto& uiFont = display.GetFont(ZepTextType::UI);
+
+            NVec2f screenPosYPx = m_airlineRegion->rect.topLeftPx;
+
+            auto drawAirline = [&](Airline& airline) {
+            } else
+            {
+                auto& display = GetEditor().GetDisplay();
+                ZepFont& font = display.GetFont(ZepTextType::Text);
+                const char* title = "pZep - a VIM-like editor. 'nuff said.";
+                const char* author = "by Dennis O. Esternon et al.";
+                const char* tagline = "pZep is open source and freely distributable";
+                const char* help1 = "type :q<Enter>       to exit";
+                const char* help2 = "type :version<Enter> for version info";
+
+                char versionStr[64];
+                snprintf(versionStr, sizeof(versionStr), "version %d.%d.%d", ZEP_VERSION_MAJOR, ZEP_VERSION_MINOR, ZEP_VERSION_PATCH);
+
+                struct Line
                 {
-                    PlaceToolTip(tipPos(*marker), marker->tipPos, 2, marker);
+                    const char* text;
+                    NVec4f color;
+                };
+                Line lines[] = {
+                    { title, NVec4f(1.0f, 1.0f, 1.0f, 1.0f) },
+                    { versionStr, NVec4f(0.9f, 0.9f, 0.9f, 1.0f) },
+                    { author, NVec4f(1.0f, 1.0f, 1.0f, 1.0f) },
+                    { tagline, NVec4f(1.0f, 1.0f, 0.0f, 1.0f) },
+                    { help1, NVec4f(0.0f, 1.0f, 0.0f, 1.0f) },
+                    { help2, NVec4f(0.0f, 1.0f, 0.0f, 1.0f) }
+                };
+
+                float lineHeight = static_cast<float>(font.GetPixelHeight());
+                float lineSpacing = lineHeight * 1.6f;
+                float totalHeight = (sizeof(lines) / sizeof(lines[0])) * lineSpacing;
+
+                float startY = m_textRegion->rect.topLeftPx.y + (m_textRegion->rect.Height() - totalHeight) * 0.5f;
+                float centerX = m_textRegion->rect.topLeftPx.x + m_textRegion->rect.Width() * 0.5f;
+
+                for (const auto& ln : lines)
+                {
+                    auto size = font.GetTextSize((const uint8_t*)ln.text);
+                    float x = centerX - size.x * 0.5f;
+                    display.DrawChars(font, NVec2f(x, startY), ln.color, (const uint8_t*)ln.text);
+                    startY += lineSpacing;
                 }
             }
-
-            if (marker->displayType & RangeMarkerDisplayType::CursorTipAtLine)
-            {
-                if ((cursorLine.lineByteRange.first <= sel.first && cursorLine.lineByteRange.second > sel.first) || (cursorLine.lineByteRange.first <= sel.second && cursorLine.lineByteRange.second > sel.second))
-                {
-                    PlaceToolTip(tipPos(*marker), marker->tipPos, 2, marker);
-                }
-            }
-            return true;
-        });
-    }
-    else
-    {
-        // No hanging tooltips if the markers on the page have gone
-        if (m_pBuffer->GetRangeMarkers(RangeMarkerType::Mark).empty())
-        {
-            m_toolTips.clear();
-        }
-    }
-
-    // No tooltip, and we can show one, then ask for tooltips from any client that wants to show them
-    if (!m_tipDisabledTillMove && (timer_get_elapsed_seconds(m_toolTipTimer) > 0.5f) && m_toolTips.empty() && m_lastTipQueryPos != m_mouseHoverPos)
-    {
-        auto spMsg = std::make_shared<ToolTipMessage>(m_pBuffer, m_mouseHoverPos, m_mouseBufferLocation);
-        GetEditor().Broadcast(spMsg);
-        if (spMsg->handled && spMsg->spMarker != nullptr)
-        {
-            PlaceToolTip(NVec2f(m_mouseHoverPos.x, m_mouseHoverPos.y), spMsg->spMarker->tipPos, 1, spMsg->spMarker);
-        }
-        m_lastTipQueryPos = m_mouseHoverPos;
-    }
-
-    for (auto& toolTip : m_toolTips)
-    {
-        DisplayToolTip(toolTip.first, *toolTip.second);
-    }
-
-    display.SetClipRect(NRectf{});
-
-    if (!GetEditor().GetCommandText().empty() || (GetEditor().GetConfig().autoHideCommandRegion == false))
-    {
-        auto modeAirlines = GetBuffer().GetMode()->GetAirlines(*this);
-
-        // Airline and underline
-        display.DrawRectFilled(m_airlineRegion->rect, ModifyBackgroundColor(ThemeColor::AirlineBackground));
-
-        auto airHeight = GetEditor().GetDisplay().GetFont(ZepTextType::UI).GetPixelHeight();
-        auto border = 12.0f;
-
-        auto& uiFont = display.GetFont(ZepTextType::UI);
-
-        NVec2f screenPosYPx = m_airlineRegion->rect.topLeftPx;
-
-        auto drawAirline = [&](Airline& airline) {
             display.SetClipRect(NRectf{});
             for (int i = 0; i < (int)airline.leftBoxes.size(); i++)
             {
