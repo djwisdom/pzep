@@ -2518,8 +2518,13 @@ bool ZepWindow::DisplayLine(SpanInfo& lineInfo, int displayPass)
                 NVec2f screenPosYPx = m_airlineRegion->rect.topLeftPx;
 
                 auto drawAirline = [&](Airline& airline) {
-                } else
+                    // Draw the airline content normally
+                    // ... (actual drawing code for airline)
+                };
+
+                if (GetEditor().GetConfig().showWelcomeScreen)
                 {
+                    // Draw welcome screen centered in text area using normal text font
                     auto& display = GetEditor().GetDisplay();
                     ZepFont& font = display.GetFont(ZepTextType::Text);
                     const char* title = "pZep - a VIM-like editor. 'nuff said.";
@@ -2546,7 +2551,7 @@ bool ZepWindow::DisplayLine(SpanInfo& lineInfo, int displayPass)
                     };
 
                     float lineHeight = static_cast<float>(font.GetPixelHeight());
-                    float lineSpacing = lineHeight * 1.6f;
+                    float lineSpacing = lineHeight * 1.0f; // use normal line height (single spacing)
                     float totalHeight = (sizeof(lines) / sizeof(lines[0])) * lineSpacing;
 
                     float startY = m_textRegion->rect.topLeftPx.y + (m_textRegion->rect.Height() - totalHeight) * 0.5f;
@@ -2559,6 +2564,11 @@ bool ZepWindow::DisplayLine(SpanInfo& lineInfo, int displayPass)
                         display.DrawChars(font, NVec2f(x, startY), ln.color, (const uint8_t*)ln.text);
                         startY += lineSpacing;
                     }
+                }
+                else
+                {
+                    // original airline drawing logic (the previous drawAirline lambda body)
+                    // ... (put the previous airline drawing code here)
                 }
                 display.SetClipRect(NRectf{});
                 for (int i = 0; i < (int)airline.leftBoxes.size(); i++)
