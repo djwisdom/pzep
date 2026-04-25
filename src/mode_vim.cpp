@@ -97,7 +97,11 @@ void ZepMode_Vim::AddCopyMaps()
     AddKeyMapWithCountRegisters({ &m_normalMap, &m_visualMap }, { "Y" }, id_YankLine);
     AddKeyMapWithCountRegisters({ &m_normalMap }, { "yy" }, id_YankLine);
 
-    // Visual mode
+    // Ctrl+C: copy selection (visual) or current line (normal)
+    AddKeyMapWithCountRegisters({ &m_normalMap }, { "<C-c>" }, id_CopyLine);
+    AddKeyMapWithCountRegisters({ &m_visualMap }, { "<C-c>" }, id_StandardCopy);
+
+    // Visual mode text objects
     AddKeyMapWithCountRegisters({ &m_visualMap }, { "aW" }, id_VisualSelectAWORD);
     AddKeyMapWithCountRegisters({ &m_visualMap }, { "aw" }, id_VisualSelectAWord);
     AddKeyMapWithCountRegisters({ &m_visualMap }, { "iW" }, id_VisualSelectInnerWORD);
@@ -106,6 +110,9 @@ void ZepMode_Vim::AddCopyMaps()
 
 void ZepMode_Vim::AddPasteMaps()
 {
+    AddKeyMapWithCountRegisters({ &m_normalMap, &m_visualMap }, { "p" }, id_PasteAfter);
+    AddKeyMapWithCountRegisters({ &m_normalMap, &m_visualMap }, { "P" }, id_PasteBefore);
+    AddKeyMapWithCountRegisters({ &m_normalMap, &m_visualMap, &m_insertMap }, { "<C-v>" }, id_StandardPaste);
 }
 
 void RegisterVimExCommands(ZepEditor& editor);

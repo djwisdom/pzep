@@ -299,6 +299,7 @@ private:
     // Mouse drag selection state
     bool m_mouseSelecting = false;
     GlyphIterator m_mouseSelStart;
+    GlyphIterator m_mouseSelEnd;
 
     // Visual stuff
     std::vector<std::string> m_statusLines; // Status information, shown under the buffer

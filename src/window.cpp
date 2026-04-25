@@ -318,6 +318,13 @@ void ZepWindow::Notify(std::shared_ptr<ZepMessage> payload)
     {
         if (payload->button == ZepMouseButton::Left && m_textRegion->rect.Contains(m_mousePos) && m_mouseIterator.Valid())
         {
+            // Start drag selection
+            m_mouseSelecting = true;
+            m_mouseSelStart = m_mouseIterator;
+            m_mouseSelEnd = m_mouseIterator;
+            // Clear any existing selection and start new
+            m_pBuffer->ClearSelection();
+            m_pBuffer->SetSelection(m_mouseSelStart, m_mouseSelEnd, true);
             SetBufferCursor(m_mouseIterator);
         }
 
@@ -343,14 +350,72 @@ void ZepWindow::Notify(std::shared_ptr<ZepMessage> payload)
             m_minimapScrollStart = m_textOffsetPx;
         }
     }
+    else if (payload->messageId == Msg::MouseMove)
+    {
+        m_mousePos = payload->pos;
+
+        if (m_minimapDragging && m_textSizePx.y > 0)
+        {
+            float minimapHeight = m_minimapRegion->rect.Height();
+            float dragDelta = m_mousePos.y - m_minimapDragStart.y;
+            float scrollDelta = (dragDelta / minimapHeight) * m_textSizePx.y;
+            m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), m_minimapScrollStart + scrollDelta));
+
+            m_vScroller->vScrollPosition = m_textOffsetPx / m_textSizePx.y;
+            UpdateVisibleLineRange();
+            DisableToolTipTillMove();
+        }
+
+        // Update drag selection
+        if (m_mouseSelecting && m_mouseIterator.Valid())
+        {
+            m_mouseSelEnd = m_mouseIterator;
+            m_pBuffer->SetSelection(m_mouseSelStart, m_mouseSelEnd, true);
+        }
+
+        if (!m_toolTips.empty())
+        {
+            if (ManhattanDistance(m_mouseHoverPos, payload->pos) > 4.0f)
+            {
+                timer_restart(m_toolTipTimer);
+                m_toolTips.clear();
+            }
+        }
+        else
+        {
+            timer_restart(m_toolTipTimer);
+            m_mouseHoverPos = payload->pos;
+
+            // Can now show tooltip again, due to mouse hover
+            m_tipDisabledTillMove = false;
+        }
+    }
     else if (payload->messageId == Msg::MouseUp)
     {
+        m_mouseSelecting = false;
         m_minimapDragging = false;
     }
     else if (payload->messageId == Msg::MouseWheel)
     {
         if (m_minimapRegion->rect.Contains(m_mousePos))
         {
+            if (m_textSizePx.y > 0)
+            {
+                float wheelDelta = 0.0f;
+                if (payload->str == "up")
+                    wheelDelta = -3.0f * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight();
+                else if (payload->str == "down")
+                    wheelDelta = 3.0f * GetEditor().GetDisplay().GetFont(ZepTextType::Text).GetPixelHeight();
+
+                m_textOffsetPx = std::max(0.0f, std::min(m_textSizePx.y - m_textRegion->rect.Height(), m_textOffsetPx + wheelDelta));
+                m_vScroller->vScrollPosition = m_textOffsetPx / m_textSizePx.y;
+                UpdateVisibleLineRange();
+                DisableToolTipTillMove();
+            }
+        }
+        else if (m_textRegion->rect.Contains(m_mousePos))
+        {
+            // Scroll the text region under mouse
             if (m_textSizePx.y > 0)
             {
                 float wheelDelta = 0.0f;
