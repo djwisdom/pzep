@@ -191,7 +191,7 @@ void ZepWindow::UpdateAirline()
     std::string bufferName = m_pBuffer->GetDisplayName();
     if (m_pBuffer->HasFileFlags(FileFlags::Dirty))
     {
-        bufferName += " +";
+        bufferName += " *";
     }
     m_airline.leftBoxes.push_back(AirBox{ bufferName, FilterActiveColor(m_pBuffer->GetTheme().GetColor(ThemeColor::AirlineBackground)) });
     // Display 1-based line:column (Vim style)
