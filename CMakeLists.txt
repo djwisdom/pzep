@@ -36,7 +36,14 @@ endif()
 
 project(Zep
     LANGUAGES CXX C
-    VERSION 0.5.32
+    VERSION 0.5.33
+)
+
+# Version components for use in code
+add_compile_definitions(
+    ZEP_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+    ZEP_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+    ZEP_VERSION_PATCH=${PROJECT_VERSION_PATCH}
 )
 
 # Find Lua if enabled
@@ -86,8 +93,8 @@ enable_testing()
 # The main library
 add_subdirectory(src)
 add_subdirectory(tests)
-if(EXISTS "${CMAKE_SOURCE_DIR}/demos" AND BUILD_DEMOS)
-    add_subdirectory(demos)
+if(EXISTS "${CMAKE_SOURCE_DIR}/apps/pzep-gui" AND BUILD_DEMOS)
+    add_subdirectory(apps/pzep-gui)
 endif()
 
 # Make the CMake bits that ensure find_package does the right thing

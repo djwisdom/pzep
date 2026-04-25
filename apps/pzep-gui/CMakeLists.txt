@@ -25,9 +25,9 @@ else()
 endif()
 
 target_include_directories(pzep-gui PRIVATE
-    ${CMAKE_SOURCE_DIR}/../../include
-    ${CMAKE_SOURCE_DIR}/../../src
-    ${CMAKE_SOURCE_DIR}/../../src/raylib
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/raylib
     ${RAYLIB_INCLUDE}
     ${CMAKE_BINARY_DIR}
 )
@@ -38,7 +38,7 @@ target_link_libraries(pzep-gui PRIVATE
     gdi32
     winmm
     user32
-    ${CMAKE_SOURCE_DIR}/../../build/lib/Release/Zep.lib
+    Zep
 )
 
 if(WIN32)

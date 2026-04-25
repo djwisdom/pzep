@@ -57,6 +57,49 @@ int GetModifiers()
 
 int main(int argc, char* argv[])
 {
+    // Handle --version flag
+    for (int i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--version") == 0)
+        {
+            printf("pZep - Vim-like editor %d.%d.%d (%.11s, compiled %.8s)\n",
+                ZEP_VERSION_MAJOR, ZEP_VERSION_MINOR, ZEP_VERSION_PATCH,
+                __DATE__, __TIME__);
+#ifdef _WIN64
+            printf("\nMS-Windows 64-bit raylib version with plugin support");
+#else
+            printf("\nPlatform raylib version with plugin support");
+#endif
+            printf("\nCompiled by ");
+#ifdef _MSC_VER
+            printf("MSVC %d", _MSC_FULL_VER);
+#else
+            printf("unknown");
+#endif
+            printf("\n\nFeatures included (+) or not (-):");
+            printf("\n+vim-mode");
+            printf("\n+repl-support");
+            printf("\n+syntax-highlighting");
+            printf("\n+line-numbers");
+            printf("\n+statusline");
+            printf("\n+minimap");
+            printf("\n+git-integration");
+            printf("\n+plugin-support");
+            printf("\n+raylib-display");
+            printf("\n+multi-buffer");
+            printf("\n\nsystem pzeprc file: \"$PZEP\\pzeprc\"");
+            printf("\nuser pzeprc file: \"$PZEP\\_pzeprc\"");
+            printf("\n\nCompilation: cmake");
+#ifdef _MSC_VER
+            printf(" MSVC %d", _MSC_FULL_VER);
+#endif
+            printf(" CXXFLAGS: /DWIN32 /D_WINDOWS /GR /EHsc");
+            printf("\nLinking: link /nologo /opt:ref /LTCG");
+            printf("\n");
+            return 0;
+        }
+    }
+
     const char* file = (argc > 1) ? argv[1] : "untitled";
 
     ZepDisplay_Raylib display(1280, 800);
