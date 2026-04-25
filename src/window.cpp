@@ -2367,10 +2367,6 @@ void ZepWindow::MoveCursorY(int yDistance, LineLocation clampLocation)
 
     auto& line = *m_windowLines[target.y];
 
-    // Snap to the new vertical column if necessary (see comment below)
-    if (target.x < m_lastCursorColumn)
-        target.x = m_lastCursorColumn;
-
     // TODO; this was an assert
     if (line.lineCodePoints.empty())
     {
