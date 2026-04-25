@@ -654,6 +654,19 @@ void ZepWindow::UpdateLineSpans(long startBufferLine, long endBufferLine)
         }
     }
 
+    // Initialize active fold stack for partial rebuild: include folds that started before startBufferLine and are still closed at startBufferLine
+    if (!fullRebuild)
+    {
+        while (nextFoldIdx < closedFolds.size() && closedFolds[nextFoldIdx]->startLine < startBufferLine)
+        {
+            if (closedFolds[nextFoldIdx]->endLine >= startBufferLine)
+            {
+                activeClosedStack.push_back(closedFolds[nextFoldIdx]);
+            }
+            nextFoldIdx++;
+        }
+    }
+
     bool isMarkdown = m_pBuffer->GetFileExtension() == ".md";
 
     // Main loop: generate spans for each affected buffer line
