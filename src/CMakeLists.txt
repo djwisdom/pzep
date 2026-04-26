@@ -84,6 +84,8 @@ ${ZEP_ROOT}/src/window.cpp
  ${ZEP_ROOT}/src/commands_terminal.cpp
  ${ZEP_ROOT}/src/commands_font.cpp
  ${ZEP_ROOT}/src/terminal.cpp
+  ${ZEP_ROOT}/src/menu_layer.cpp
+  ${ZEP_ROOT}/src/options_dialog.cpp
  )
 
 # Conditionally include REPL providers based on CMake options

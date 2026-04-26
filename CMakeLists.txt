@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.15)
 message(STATUS "CMakeLists: Zep")
 
 # Global Options
-option(BUILD_IMGUI "Make Imgui Library" OFF)
 option(BUILD_DEMOS "Make the demo app" ON)
 option(BUILD_TESTS "Make the tests" ON)
 option(ZEP_FEATURE_CPP_FILE_SYSTEM "Default File system enabled" ON)
@@ -37,7 +36,7 @@ endif()
 
 project(Zep
     LANGUAGES CXX C
-    VERSION 0.5.69
+    VERSION 0.5.70
 )
 
 # Version components for use in code

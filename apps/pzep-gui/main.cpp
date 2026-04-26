@@ -2,6 +2,7 @@
 #include "zep/commands_tutor.h"
 #include "zep/editor.h"
 #include "zep/filesystem.h"
+#include "zep/menu_layer.h"
 #include "zep/mode_repl.h"
 #include "zep/mode_vim.h"
 #include "zep/raylib/display_raylib.h"
@@ -228,6 +229,10 @@ int main(int argc, char* argv[])
     ZepEditor editor(&display, pzepDir); // Use pzepDir as config root
     editor.SetGlobalMode(ZepMode_Vim::StaticName());
 
+    // Create menu layer
+    Zep::MenuLayer menuLayer(editor);
+    menuLayer.BuildDefaultMenu();
+
     // Load REPL plugins from the plugins/ directory (if any)
     // Plugin loading is disabled by default for security; enable via config
     // InitializeReplPluginLoader(&editor, "plugins");
@@ -437,6 +442,11 @@ int main(int argc, char* argv[])
                             editor.GetDisplay().SetLayoutDirty(true);
                             editor.SetCommandText(editor.GetConfig().showMinimap ? "minimap on" : "nominimap");
                         }
+                        // F10 (299) - toggle menu
+                        else if (key == 299)
+                        {
+                            menuLayer.ToggleVisible();
+                        }
                         else
                         {
                             auto it = g_keyMap.find(key);
@@ -470,6 +480,10 @@ int main(int argc, char* argv[])
         }
 
         editor.Display();
+
+        // Draw raygui menu layer on top
+        menuLayer.Draw();
+
         display.EndFrame();
 
         // If all tab windows have been closed (e.g., via :q), exit the main loop

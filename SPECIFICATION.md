@@ -9,7 +9,7 @@ pZep is a lightweight, standalone code editor (fork of Zep) with the following c
 - **Vim-like code editor** with full modal editing (Normal, Insert, Visual, Command modes)
 - **Interactive tutorial system** (`:tutor` command) with hands-on demos
 - **Multi-language REPL integration** (Lua, Duktape/JavaScript, QuickJS)
-- **Cross-platform** rendering via multiple backends (Raylib GUI, ImGui, Qt)
+ - **Cross-platform** rendering via Raylib GUI
 - **Syntax highlighting** for 15+ languages (C++, Python, Rust, GLSL, HLSL, Lua, JavaScript, Markdown, CMake, SQL, etc.)
 - **Terminal emulator** and **Git integration** built-in
 - **Tabbed interface** with split panes
@@ -39,13 +39,22 @@ From `CHANGELOG.md`: Extended Vim functionality (macros, folds, multiple cursors
   - Git integration
   - Buffer lifecycle (create, save, remove)
 
+### Core Modules
+
+#### 1. **Editor Core (`ZepEditor`)**
+- **File**: `include/zep/editor.h` (537 lines)
+- **Role**: Main editor controller
+- **Responsibilities**:
+  - Manages tab windows, buffers, and global state
+  - Registers modes, syntax providers, REPL providers, and ex-commands
+  - Message broadcasting system (`IZepComponent`)
+  - Configuration and theme management
+  - Thread pool for async operations
+  - Git integration
+  - Buffer lifecycle (create, save, remove)
+
 #### 2. **Display System (`ZepDisplay`)**
-- **Files**: 
-  - `include/zep/display.h` (abstract interface)
-  - `src/raylib/display_raylib.cpp` (Raylib backend in GUI app)
-  - `include/zep/imgui/display_imgui.h` (ImGui backend)
-  - `include/zep/ftxui/display_ftxui.h` (FTXUI backend - stubs)
-  - `include/zep/qt/display_qt.h` (Qt backend - stubs)
+- **File**: `include/zep/display.h` (abstract interface), `src/raylib/display_raylib.cpp` (Raylib backend in GUI app)
 - **Role**: Rendering and input abstraction
 - **Responsibilities**: Drawing text, handling fonts, managing screen regions, input event translation
 
@@ -362,9 +371,9 @@ From `CMakeLists.txt` and `src/CMakeLists.txt`:
 - ✅ Export compile commands
 
 **Options** (CMake flags):
-- ✅ `BUILD_QT` - Qt backend (OFF by default)
-- ✅ `BUILD_IMGUI` - ImGui backend (OFF by default)
-- ✅ `BUILD_DEMOS` - Build demo app (ON by default)
+ - ✅ `BUILD_QT` - Qt backend (**removed**)
+ - ✅ `BUILD_IMGUI` - ImGui backend (**removed**)
+ - ✅ `BUILD_DEMOS` - Build demo app (ON by default)
 - ✅ `BUILD_TESTS` - Build unit tests (ON by default)
 - ✅ `ZEP_FEATURE_CPP_FILE_SYSTEM` - Use std::filesystem (ON by default)
 - ✅ `ENABLE_LUA_REPL` - Lua scripting (OFF by default)
@@ -484,8 +493,8 @@ From `CMakeLists.txt` and `src/CMakeLists.txt`:
 - **Lua** (vcpkg: lua) - for Lua REPL
 - **Duktape** (vcpkg: duktape or bundled) - for JavaScript REPL
 - **QuickJS** (vcpkg: quickjs or bundled) - for modern JS REPL
-- **ImGui** (vcpkg: imgui) - for ImGui backend (demo)
-- **Raylib** (vcpkg: raylib) - for GUI demo app
+ - **ImGui** (vcpkg: imgui) - for ImGui backend (**removed**)
+ - **Raylib** (vcpkg: raylib) - for GUI demo app
 - **Freetype, GLFW, libpng** (vcpkg) - for GUI demo
 - **GoogleTest** (bundled in tests/) - for unit tests
 - **cpptoml** (bundled) - for config file parsing
@@ -552,9 +561,9 @@ From `CMakeLists.txt` and `src/CMakeLists.txt`:
 
 ### Missing/Incomplete (vs. Aspirational)
 - ❌ **Plugin System**: Dynamic loading stubbed (but REPL plugins work)
-- ❌ **Qt Backend**: Stub only (not implemented)
-- ❌ **FTXUI Backend**: Stub only (not implemented)
-- ❌ **ImGui Backend**: Referenced but not in main GUI app
+ - ❌ **Qt Backend**: **removed**
+ - ❌ **FTXUI Backend**: **removed**
+ - ❌ **ImGui Backend**: **removed**
 - ❌ **Config UI**: No graphical settings dialog
 - ❌ **File Explorer**: No tree view (buffer list via `:ls`)
 - ❌ **Symbol Panel**: Indexer exists but no UI integration
@@ -694,7 +703,7 @@ The `Zep` static library itself has **zero external dependencies** when built wi
 
 ### Optional Dependencies by Feature
 
-| Feature | Dependency | Required? | Notes |
+ | Feature | Dependency | Required? | Notes |
 |---------|-----------|-----------|-------|
 | Lua REPL | Lua 5.4+ | Optional | vcpkg: `lua` or system lib |
 | Duktape REPL | Duktape | Optional | Bundled source available |
@@ -703,7 +712,6 @@ The `Zep` static library itself has **zero external dependencies** when built wi
 | GUI Demo | FreeType | Optional | vcpkg: `freetype` |
 | GUI Demo | GLFW | Optional | vcpkg: `glfw3` |
 | GUI Demo | libpng | Optional | vcpkg: `libpng` |
-| ImGui Backend | ImGui | Optional | vcpkg: `imgui` |
 | Tests | GoogleTest | Optional | Bundled in `tests/` |
 | Config Parsing | cpptoml | Yes (bundled) | Header-only, included |
 | UTF-8 | None | No | Custom implementation |
